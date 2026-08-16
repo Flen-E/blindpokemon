@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#c81810">
+<title>FIRERED — 팬메이드 GBA 스타일 모험</title>
+<meta name="description" content="브라우저에서 바로 플레이하는 팬메이드 몬스터 수집 RPG. 포켓몬을 잡고 배틀하며 화강암 배지를 획득하세요.">
+
+<!-- Link-sharing previews (Open Graph: WhatsApp, Facebook, Discord, etc.) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FIRERED">
+<meta property="og:title" content="FIRERED — 팬메이드 GBA 스타일 모험">
+<meta property="og:description" content="브라우저에서 바로 플레이하는 팬메이드 몬스터 수집 RPG. 포켓몬을 잡고 배틀하며 화강암 배지를 획득하세요.">
+<meta property="og:url" content="https://fire-red-rpg.vercel.app/">
+<meta property="og:image" content="https://fire-red-rpg.vercel.app/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FIRERED — 불꽃 같은 붉은 배경의 픽셀 리자몽">
+
+<!-- Twitter / X card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FIRERED — 팬메이드 GBA 스타일 모험">
+<meta name="twitter:description" content="브라우저에서 바로 플레이하는 팬메이드 몬스터 수집 RPG. 포켓몬을 잡고 배틀하며 화강암 배지를 획득하세요.">
+<meta name="twitter:image" content="https://fire-red-rpg.vercel.app/assets/og-image.png">
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="wrap">
+  <div id="screen">
+    <!-- 480x320 internal resolution (game logic uses 240x160 via a 2x transform)
+         so 32px source art renders at native detail -->
+    <canvas id="game" width="480" height="320"></canvas>
+
+    <!-- Battle HUD (info boxes) -->
+    <div id="enemy-box" class="info-box hidden">
+      <div class="ib-row1"><span class="ib-name"></span><span class="ib-lv"></span></div>
+      <div class="ib-row2">
+        <span class="ib-status"></span>
+        <div class="hp-outer"><div class="hp-label">체력</div><div class="hp-track"><div class="hp-fill"></div></div></div>
+      </div>
+      <div class="ib-hpnum"></div>
+      <div class="ib-balls"></div>
+    </div>
+    <div id="player-box" class="info-box hidden">
+      <div class="ib-row1"><span class="ib-name"></span><span class="ib-lv"></span></div>
+      <div class="ib-row2">
+        <span class="ib-status"></span>
+        <div class="hp-outer"><div class="hp-label">체력</div><div class="hp-track"><div class="hp-fill"></div></div></div>
+      </div>
+      <div class="ib-hpnum"></div>
+      <div class="exp-track"><div class="exp-fill"></div></div>
+    </div>
+
+    <!-- Mystery encounter clues: 9 body facts + 18 defensive matchups. -->
+    <div id="battle-hints" class="hidden">
+      <div class="hints-head">
+        <span>&#xAD00;&#xCC30; &#xAE30;&#xB85D;</span>
+        <span class="hints-actions"><span id="hints-count"></span><button id="hints-toggle" type="button" aria-label="Toggle observation record size">G</button></span>
+      </div>
+      <div id="hint-grid"></div>
+    </div>
+
+    <!-- Dialog box -->
+    <div id="dialog" class="gba-box hidden">
+      <div id="dialog-text"></div>
+      <div id="dialog-arrow" class="hidden">&#9660;</div>
+    </div>
+
+    <!-- Dynamic menu layer (battle menu, moves, party, bag, shop, etc.) -->
+    <div id="menu-layer"></div>
+
+    <!-- Gym-leader battle splash: full-body reveal -> VS cut-in -> vortex -->
+    <div id="vs-intro" class="hidden" aria-hidden="true">
+      <div class="vs-speed-lines"></div>
+      <div class="vs-full-reveal">
+        <div class="vs-full-fallback">GYM<br>LEADER</div>
+        <img id="vs-leader-full" alt="">
+        <div id="vs-leader-title"></div>
+      </div>
+      <div class="vs-matchup">
+        <div class="vs-lane vs-player-lane">
+          <div class="vs-lane-fallback">PLAYER</div>
+          <img id="vs-player-face" alt="">
+          <span>도전자</span>
+        </div>
+        <img id="vs-mark" alt="VS">
+        <div class="vs-lane vs-leader-lane">
+          <div class="vs-lane-fallback">LEADER</div>
+          <img id="vs-leader-face" alt="">
+          <span id="vs-leader-name"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch controls: overlaid INSIDE the game, mobile-RPG style -->
+    <div id="touch-controls">
+      <div id="dpad">
+        <button data-k="up" id="tc-up">&#9650;</button>
+        <button data-k="left" id="tc-left">&#9664;</button>
+        <button data-k="right" id="tc-right">&#9654;</button>
+        <button data-k="down" id="tc-down">&#9660;</button>
+      </div>
+      <div id="action-pad">
+        <button data-k="start" id="tc-start">시작</button>
+        <button data-k="b" id="tc-b">취소</button>
+        <button data-k="a" id="tc-a">확인</button>
+      </div>
+    </div>
+
+    <!-- Fade overlay for transitions -->
+    <div id="fade"></div>
+  </div>
+  <div id="hint">Z / SPACE = 확인 &nbsp;&middot;&nbsp; X = 취소 &nbsp;&middot;&nbsp; ENTER = 메뉴 &nbsp;&middot;&nbsp; G = 관찰 기록 확대 &nbsp;&middot;&nbsp; F = 전체 화면 &nbsp;&middot;&nbsp; M = 소리</div>
+</div>
+
+<!-- Portrait blocker for touch devices -->
+<div id="rotate-overlay">
+  <div>
+    <div style="font-size:42px">&#128260;</div>
+    <p>기기를 가로로 돌려 주세요</p>
+    <p style="font-size:10px;opacity:.7">가로 화면에서 플레이할 수 있습니다</p>
+  </div>
+</div>
+
+<script src="js/audio.js"></script>
+<script src="js/data/types.js"></script>
+<script src="js/data/moves.js"></script>
+<script src="js/data/species.js"></script>
+<script src="js/data/hints.js"></script>
+<script src="js/data/sprites.js"></script>
+<script src="js/data/assets.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/maps.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/save.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/overworld.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
