@@ -1079,7 +1079,8 @@ function makeCreature(speciesId, level) {
     exp: expForLevel(level),
     shiny: Math.random() < 1 / 512,   // shiny encounter rate: 1 in 512
     identified: false,                // revealed by the Scanner
-    nickname: '',                     // player's guess; does not reveal species data
+    nickname: '',                     // legacy field; new guesses are resolved immediately
+    revealedHints: [],                // clues earned before this creature was caught
     status: null,       // null | 'PSN' | 'BRN' | 'PAR' | 'SLP' | 'FRZ'
     sleepTurns: 0,
     moves: movesAtLevel(speciesId, level).map(id => ({
@@ -1092,9 +1093,8 @@ function makeCreature(speciesId, level) {
 }
 
 function creatureName(c) {
-  // A player-entered guess replaces ??? only while the creature is unknown.
-  // Once a Scanner reveals the real sprite, the real species name must win as
-  // well; keeping a wrong guess here made the revealed name and art disagree.
+  // Legacy saves may still carry a nickname. New guesses resolve immediately:
+  // correct answers identify the creature and wrong answers release it.
   const nickname = typeof c.nickname === 'string' ? c.nickname.trim() : '';
   if (!c.identified) return nickname || '???';
   return speciesName(c);
@@ -1105,6 +1105,38 @@ function speciesName(c) {
   // encounters. Keep the old field as a fallback for data-only validation.
   const hint = typeof HINT_DATA !== 'undefined' ? HINT_DATA[c.species] : null;
   return hint && hint.name ? hint.name : SPECIES[c.species].name;
+}
+
+function normalizeSpeciesGuess(value) {
+  return String(value || '').trim().toLocaleLowerCase().replace(/[\s._\-']/g, '');
+}
+
+function guessMatchesSpecies(c, guess) {
+  const normalized = normalizeSpeciesGuess(guess);
+  if (!normalized) return false;
+  return normalized === normalizeSpeciesGuess(speciesName(c)) ||
+    normalized === normalizeSpeciesGuess(c.species) ||
+    normalized === normalizeSpeciesGuess(SPECIES[c.species].name);
+}
+
+function isFirstPartner(c) {
+  if (typeof Game === 'undefined' || !Game.player || !Game.player.flags) return false;
+  const flags = Game.player.flags;
+  if (flags.starter_uid !== undefined && flags.starter_uid !== null) {
+    return c.uid === flags.starter_uid;
+  }
+  return flags.starter === true && Game.player.party[0] === c;
+}
+
+function identifyCreature(c) {
+  c.identified = true;
+  c.unknown = false;
+  c.nickname = '';
+  if (isFirstPartner(c)) {
+    Game.player.flags.first_partner_scanned = true;
+    Game.player.flags.guess_unlocked = true;
+  }
+  return c;
 }
 function creatureTypes(c) { return SPECIES[c.species].types; }
 

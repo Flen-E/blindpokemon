@@ -255,6 +255,14 @@ body.touch {
 .hint-key { font-size: 7px; }
 .hint-value { font-size: 8px; color: #f4f7f8; }
 .hint-card.open .hint-value { color: #1e2a30; }
+.hint-color-swatch {
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-left: 4px;
+  border: 1px solid rgba(20,32,38,.65);
+  border-radius: 2px;
+  vertical-align: -1px;
+}
 .hint-card.defense {
   flex-direction: row;
   align-items: center;
@@ -342,6 +350,38 @@ body.touch {
 .ps-hpfill { height: 100%; background: #58d058; }
 .ps-hpfill.mid { background: #f8d030; } .ps-hpfill.low { background: #f05038; }
 .ps-st { font-size: 9px; padding: 2px 5px; border-radius: 3px; color: #fff; }
+.ps-hints { margin-top: 4px; color: #b7c8d0; font-size: 8px; }
+
+.companion-hint-screen {
+  padding: 18px 24px 40px;
+  background: linear-gradient(145deg, #263943, #3f606b 55%, #29444f);
+}
+.companion-hint-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 2px solid #18262d;
+  border-radius: 7px;
+  background: #e9f1e8;
+  color: #1f333c;
+  font-size: 11px;
+}
+.companion-hint-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.companion-hint-grid .hint-section { grid-auto-rows: 38px; gap: 6px; }
+.companion-hint-grid .hint-facts-grid {
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 48px;
+}
+.companion-hint-grid .hint-card { padding: 4px 8px; }
+.companion-hint-grid .hint-key { font-size: 9px; }
+.companion-hint-grid .hint-value { font-size: 10px; }
+.companion-hint-grid .hint-color-swatch { width: 10px; height: 10px; }
 
 /* supplied Essentials-style PC storage skin, with high-contrast panels so
    Korean text stays readable over the original pixel artwork */
@@ -522,7 +562,7 @@ body.touch {
   font-family: var(--px-font); font-size: 9px;
   padding: 8px; resize: none; line-height: 1.6;
 }
-.nickname-modal input {
+.guess-modal input {
   width: 100%; box-sizing: border-box;
   background: #181c20; color: #f8d048;
   border: 2px solid #62d8e8; border-radius: 6px;

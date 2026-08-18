@@ -140,7 +140,26 @@ const SaveSys = (() => {
     // until the player spends a Scanner on them.
     for (const c of Game.player.party.concat(Game.player.vault || [])) {
       c.identified = c.identified === true;
-      c.nickname = typeof c.nickname === 'string' ? c.nickname.trim().slice(0, 12) : '';
+      c.unknown = !c.identified;
+      // Old free-form guesses are not valid under the new all-or-release rule.
+      c.nickname = '';
+      const savedHints = Array.isArray(c.revealedHints) ? c.revealedHints : [];
+      c.revealedHints = [...new Set(savedHints.filter(id =>
+        HINT_DEFINITIONS.some(def => def.id === id)
+      ))];
+    }
+    if (Game.player.flags.starter && Game.player.party[0]) {
+      if (Game.player.flags.starter_uid === undefined) {
+        Game.player.flags.starter_uid = Game.player.party[0].uid;
+      }
+      const starter = Game.player.party.find(c => c.uid === Game.player.flags.starter_uid) || Game.player.party[0];
+      if (starter.identified) {
+        Game.player.flags.first_partner_scanned = true;
+        Game.player.flags.guess_unlocked = true;
+      } else if (Game.player.flags.guess_unlocked !== true) {
+        Game.player.flags.first_partner_scanned = false;
+        Game.player.flags.guess_unlocked = false;
+      }
     }
     // Migrate the old English badge label so loaded saves stay Korean too.
     if (Array.isArray(Game.player.badges)) {

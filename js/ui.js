@@ -388,14 +388,9 @@ const UI = (() => {
     clearHints();
   }
 
-  // Render all slots at once so revealed values are readable immediately.
-  // Defensive matchups live in their own grid and always begin with Normal.
-  function setHints(c, revealed) {
-    if (!hintPanel || !c || !c.unknown) { clearHints(); return; }
+  function renderHintSections(container, c, revealed) {
     const open = new Set(revealed || []);
-    hintPanel.classList.remove('hidden');
-    hintCount.textContent = `${open.size}/${HINT_DEFINITIONS.length}`;
-    hintGrid.innerHTML = '';
+    container.innerHTML = '';
     const facts = document.createElement('div');
     facts.className = 'hint-section hint-facts-grid';
     const defenses = document.createElement('div');
@@ -411,11 +406,29 @@ const UI = (() => {
       const value = document.createElement('span');
       value.className = 'hint-value';
       value.textContent = isOpen ? hintValue(c, def.id) : '?';
+      if (isOpen && def.id === 'color') {
+        const color = HINT_DATA[c.species].color;
+        const swatch = document.createElement('span');
+        swatch.className = 'hint-color-swatch';
+        swatch.style.backgroundColor = HINT_COLOR_HEX[color];
+        swatch.setAttribute('aria-label', `${hintValue(c, def.id)} 색상`);
+        value.appendChild(swatch);
+      }
       card.appendChild(label); card.appendChild(value);
       (isDefense ? defenses : facts).appendChild(card);
     }
-    hintGrid.appendChild(facts);
-    hintGrid.appendChild(defenses);
+    container.appendChild(facts);
+    container.appendChild(defenses);
+    return open.size;
+  }
+
+  // Render all slots at once so revealed values are readable immediately.
+  // Defensive matchups live in their own grid and always begin with Normal.
+  function setHints(c, revealed) {
+    if (!hintPanel || !c || !c.unknown) { clearHints(); return; }
+    hintPanel.classList.remove('hidden');
+    const count = renderHintSections(hintGrid, c, revealed);
+    hintCount.textContent = `${count}/${HINT_DEFINITIONS.length}`;
   }
 
   function clearHints() {
@@ -555,13 +568,15 @@ const UI = (() => {
         const cls = frac > 0.5 ? '' : frac > 0.2 ? 'mid' : 'low';
         const stTag = c.hp <= 0 ? 'FNT' : c.status;
         const stText = c.hp <= 0 ? '기절' : (STATUS_INFO[c.status] ? STATUS_INFO[c.status].name : '');
+        const hintTotal = Array.isArray(c.revealedHints) ? c.revealedHints.length : 0;
         slot.appendChild(cv);
         const info = document.createElement('div');
         info.className = 'ps-info';
         info.innerHTML = `<div class="ps-name">${htmlSafe(creatureName(c))} <span style="color:#9ab">레벨 ${c.level}</span>
             ${stTag ? `<span class="ps-st st-${stTag}">${stText}</span>` : ''}</div>
           <div class="ps-hpline"><div class="ps-hptrack"><div class="ps-hpfill ${cls}" style="width:${frac * 100}%"></div></div>
-          <span>${Math.max(0, c.hp)}/${c.maxHp}</span></div>`;
+          <span>${Math.max(0, c.hp)}/${c.maxHp}</span></div>
+          <div class="ps-hints">관찰 ${hintTotal}/${HINT_DEFINITIONS.length}</div>`;
         slot.appendChild(info);
         const partyName = info.querySelector('.ps-name');
         if (partyName && !revealed && !String(c.nickname || '').trim()) partyName.firstChild.textContent = '??? ';
@@ -607,7 +622,8 @@ const UI = (() => {
         <div><div class="summary-name">${htmlSafe(creatureName(c))}</div>
         <div class="summary-scan ${revealed ? 'done' : ''}">${revealed ? '스캔 완료' : '정체 미확인'}</div>
         <div class="summary-line">레벨 ${c.level} &nbsp; 상태 ${status}</div>
-        <div class="summary-line">타입 ${htmlSafe(types)}</div></div>
+        <div class="summary-line">타입 ${htmlSafe(types)}</div>
+        <div class="summary-line">관찰 기록 ${(c.revealedHints || []).length}/${HINT_DEFINITIONS.length}</div></div>
       </div>
       <div class="summary-body">
         <section class="summary-stats">
@@ -626,6 +642,28 @@ const UI = (() => {
     scr.querySelector('#summary-sprite').appendChild(
       revealed ? creatureThumb(c.species, 150, c.shiny) : creatureSilhouetteThumb(c.species, 150)
     );
+    menuLayer.appendChild(scr);
+    try {
+      await Input.waitButton('a', 'b', 'start');
+      Sfx.cancel();
+    } finally {
+      scr.remove();
+    }
+  }
+
+  async function hintRecordScreen(c) {
+    const revealed = Array.isArray(c.revealedHints) ? c.revealedHints : [];
+    const scr = document.createElement('div');
+    scr.className = 'full-screen companion-hint-screen';
+    scr.innerHTML = `
+      <div class="fs-title">동료 관찰 기록</div>
+      <div class="companion-hint-head">
+        <span>${htmlSafe(creatureName(c))}</span>
+        <span>${revealed.length}/${HINT_DEFINITIONS.length}</span>
+      </div>
+      <div id="companion-hint-grid" class="companion-hint-grid"></div>
+      <div class="fs-foot">Z / X: 돌아가기</div>`;
+    renderHintSections(scr.querySelector('#companion-hint-grid'), c, revealed);
     menuLayer.appendChild(scr);
     try {
       await Input.waitButton('a', 'b', 'start');
@@ -720,19 +758,21 @@ const UI = (() => {
         const transferLabel = area === 'party' ? 'BOX에 보관' : '동료로 데려오기';
         const scannerCount = Game.player.bag.scanner || 0;
         const scanLabel = c.identified ? '스캐너 사용 (확인 완료)' : `스캐너 사용 (${scannerCount}개)`;
-        const action = await choose(['요약 보기', transferLabel, scanLabel, '취소'], {
+        const action = await choose(['요약 보기', '관찰 기록', transferLabel, scanLabel, '취소'], {
           style: { right: '18px', bottom: '40px', width: '240px', zIndex: 72 },
         });
         if (action === 0) {
           await summaryScreen(c);
-        } else if (action === 1 && area === 'party') {
+        } else if (action === 1) {
+          await hintRecordScreen(c);
+        } else if (action === 2 && area === 'party') {
           if (party.length <= 1) { toast('마지막 동료는 보관할 수 없습니다!'); }
           else {
             vault.push(party.splice(index, 1)[0]);
             index = Math.min(index, party.length - 1);
             toast('BOX 1에 보관했습니다.');
           }
-        } else if (action === 1) {
+        } else if (action === 2) {
           if (party.length >= 6) { toast('동료가 가득 찼습니다!'); }
           else {
             party.push(vault.splice(index, 1)[0]);
@@ -740,12 +780,12 @@ const UI = (() => {
             if (!vault.length) area = 'party';
             toast('동료로 데려왔습니다.');
           }
-        } else if (action === 2) {
+        } else if (action === 3) {
           if (c.identified) toast('이미 정체를 확인한 동료입니다.');
           else if (scannerCount <= 0) toast('스캐너가 없습니다.');
           else {
             Game.player.bag.scanner--;
-            c.identified = true;
+            identifyCreature(c);
             Sfx.statUp();
             toast(`스캔 완료: ${speciesName(c)}`);
           }
@@ -967,16 +1007,15 @@ const UI = (() => {
     });
   }
 
-  function nicknameModal(c) {
+  function guessModal(c) {
     return new Promise((resolve) => {
-      const old = typeof c.nickname === 'string' ? c.nickname : '';
       const scr = document.createElement('div');
-      scr.className = 'full-screen save-modal nickname-modal';
+      scr.className = 'full-screen save-modal guess-modal';
       scr.innerHTML = `<div class="fs-title">이름 추측하기</div>
         <div style="font-size:10px;line-height:1.8;color:#b8c4cc;margin-bottom:10px">
-          이 포켓몬의 이름을 추측해서 입력하세요.<br>
-          비워 두면 다시 ???로 표시됩니다.</div>
-        <input id="nm-input" type="text" maxlength="12" autocomplete="off" value="${htmlSafe(old)}">
+          관찰 기록을 보고 이 포켓몬의 정확한 이름을 입력하세요.<br>
+          정답이면 모습이 공개되지만, 틀리면 동료가 실망해 떠납니다.</div>
+        <input id="nm-input" type="text" maxlength="20" autocomplete="off" value="">
         <div class="modal-btns">
           <button id="nm-ok">확인</button>
           <button id="nm-cancel">취소</button>
@@ -991,10 +1030,10 @@ const UI = (() => {
         resolve(value);
       };
       const unsub = Input.listen(['b'], () => { Sfx.cancel(); done(null); });
-      scr.querySelector('#nm-ok').onclick = () => { Sfx.select(); done(input.value.trim().slice(0, 12)); };
+      scr.querySelector('#nm-ok').onclick = () => { Sfx.select(); done(input.value.trim().slice(0, 20)); };
       scr.querySelector('#nm-cancel').onclick = () => { Sfx.cancel(); done(null); };
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); Sfx.select(); done(input.value.trim().slice(0, 12)); }
+        if (e.key === 'Enter') { e.preventDefault(); Sfx.select(); done(input.value.trim().slice(0, 20)); }
         if (e.key === 'Escape') { e.preventDefault(); Sfx.cancel(); done(null); }
       });
     });
@@ -1004,8 +1043,8 @@ const UI = (() => {
     init, say, sayLines, setPrompt, hideDialog, choose, yesNo, toast,
     fadeOut, fadeIn, flashScreen, leaderVsIntro,
     setBox, setStatusChip, setEnemyBalls, hideBoxes, animateHp, animateExp,
-    moveMenu, partyScreen, summaryScreen, storageScreen, bagScreen, shopScreen, starterChoice,
+    moveMenu, partyScreen, summaryScreen, hintRecordScreen, storageScreen, bagScreen, shopScreen, starterChoice,
     setHints, clearHints, toggleHintsMinimized,
-    saveModal, importModal, nicknameModal,
+    saveModal, importModal, guessModal,
   };
 })();

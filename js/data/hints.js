@@ -36,7 +36,7 @@ const HINT_DATA = {
   beedrill:   { name: '\uB3C5\uCE68\uBD95', height: 1.0, weight: 29.5, color: 'yellow', shape: 'wings',     gender: '50/50',     growth: 'medium-fast', previous: 'kakuna', next: null, nextLevel: null, catchRate: 45 },
   pidgey:     { name: '\uAD6C\uAD6C', height: 0.3, weight: 1.8, color: 'brown',  shape: 'wings',     gender: '50/50',     growth: 'medium-slow', previous: null,       next: 'pidgeotto', nextLevel: 18, catchRate: 255 },
   pidgeotto:  { name: '\uD53C\uC96C', height: 1.1, weight: 30.0, color: 'brown', shape: 'wings',     gender: '50/50',     growth: 'medium-slow', previous: 'pidgey', next: 'pidgeot', nextLevel: 36, catchRate: 120 },
-  pidgeot:    { name: '\uD53C\uC96C\uD22C', height: 1.5, weight: 39.5, color: 'yellow', shape: 'wings',   gender: '50/50', growth: 'medium-slow', previous: 'pidgeotto', next: null, nextLevel: null, catchRate: 45 },
+  pidgeot:    { name: '\uD53C\uC96C\uD22C', height: 1.5, weight: 39.5, color: 'brown', shape: 'wings',   gender: '50/50', growth: 'medium-slow', previous: 'pidgeotto', next: null, nextLevel: null, catchRate: 45 },
   rattata:    { name: '\uAF2C\uB9AC\uC120', height: 0.3, weight: 3.5, color: 'purple', shape: 'quadruped', gender: '50/50', growth: 'medium-fast', previous: null, next: 'raticate', nextLevel: 20, catchRate: 255 },
   raticate:   { name: '\uB2E4\uAF2C\uB9AC', height: 0.7, weight: 18.5, color: 'brown', shape: 'quadruped', gender: '50/50', growth: 'medium-fast', previous: 'rattata', next: null, nextLevel: null, catchRate: 127 },
   spearow:    { name: '깨비참', height: 0.3, weight: 2.0, color: 'brown', shape: 'wings', gender: '50/50', growth: 'medium-fast', previous: null, next: 'fearow', nextLevel: 20, catchRate: 255 },
@@ -45,7 +45,7 @@ const HINT_DATA = {
   raichu:     { name: '라이츄', height: 0.8, weight: 30.0, color: 'yellow', shape: 'upright', gender: '50/50', growth: 'medium-fast', previous: 'pikachu', next: null, nextLevel: null, catchRate: 75 },
   sandshrew:  { name: '모래두지', height: 0.6, weight: 12.0, color: 'yellow', shape: 'upright', gender: '50/50', growth: 'medium-fast', previous: null, next: 'sandslash', nextLevel: 22, catchRate: 255 },
   sandslash:  { name: '고지', height: 1.0, weight: 29.5, color: 'yellow', shape: 'upright', gender: '50/50', growth: 'medium-fast', previous: 'sandshrew', next: null, nextLevel: null, catchRate: 90 },
-  zubat:      { name: '주뱃', height: 0.8, weight: 7.5, color: 'blue', shape: 'wings', gender: '50/50', growth: 'medium-fast', previous: null, next: 'golbat', nextLevel: 22, catchRate: 255 },
+  zubat:      { name: '주뱃', height: 0.8, weight: 7.5, color: 'purple', shape: 'wings', gender: '50/50', growth: 'medium-fast', previous: null, next: 'golbat', nextLevel: 22, catchRate: 255 },
   golbat:     { name: '골뱃', height: 1.6, weight: 55.0, color: 'purple', shape: 'wings', gender: '50/50', growth: 'medium-fast', previous: 'zubat', next: null, nextLevel: null, catchRate: 90 },
   mankey:     { name: '망키', height: 0.5, weight: 28.0, color: 'brown', shape: 'upright', gender: '50/50', growth: 'medium-fast', previous: null, next: 'primeape', nextLevel: 28, catchRate: 190 },
   primeape:   { name: '성원숭', height: 1.0, weight: 32.0, color: 'brown', shape: 'upright', gender: '50/50', growth: 'medium-fast', previous: 'mankey', next: null, nextLevel: null, catchRate: 75 },
@@ -115,8 +115,8 @@ const HINT_DATA = {
   fidough:    { name: '쫀도기', height: 0.3, weight: 10.9, color: 'yellow', shape: 'quadruped', gender: '50/50', growth: 'medium-slow', previous: null, next: 'dachsbun', nextLevel: 26, catchRate: 190 },
   dachsbun:   { name: '바우첼', height: 0.5, weight: 14.9, color: 'brown', shape: 'quadruped', gender: '50/50', growth: 'medium-slow', previous: 'fidough', next: null, nextLevel: null, catchRate: 90 },
   frigibax:   { name: '드니차', height: 0.5, weight: 17.0, color: 'gray', shape: 'upright', gender: '50/50', growth: 'slow', previous: null, next: 'arctibax', nextLevel: 35, catchRate: 45 },
-  arctibax:   { name: '드니꽁', height: 0.8, weight: 30.0, color: 'gray', shape: 'upright', gender: '50/50', growth: 'slow', previous: 'frigibax', next: 'baxcalibur', nextLevel: 54, catchRate: 25 },
-  baxcalibur: { name: '드닐레이브', height: 2.1, weight: 210.0, color: 'gray', shape: 'upright', gender: '50/50', growth: 'slow', previous: 'arctibax', next: null, nextLevel: null, catchRate: 10 },
+  arctibax:   { name: '드니꽁', height: 0.8, weight: 30.0, color: 'blue', shape: 'upright', gender: '50/50', growth: 'slow', previous: 'frigibax', next: 'baxcalibur', nextLevel: 54, catchRate: 25 },
+  baxcalibur: { name: '드닐레이브', height: 2.1, weight: 210.0, color: 'blue', shape: 'upright', gender: '50/50', growth: 'slow', previous: 'arctibax', next: null, nextLevel: null, catchRate: 10 },
   glimmet:    { name: '초롱순', height: 0.7, weight: 8.0, color: 'blue', shape: 'ball', gender: '50/50', growth: 'medium-slow', previous: null, next: 'glimmora', nextLevel: 35, catchRate: 70 },
   glimmora:   { name: '킬라플로르', height: 1.5, weight: 45.0, color: 'blue', shape: 'ball', gender: '50/50', growth: 'medium-slow', previous: 'glimmet', next: null, nextLevel: null, catchRate: 25 },
 };
@@ -125,6 +125,14 @@ const HINT_COLOR_NAMES = {
   green: '\uCD08\uB85D', red: '\uBE68\uAC15', blue: '\uD30C\uB791', white: '\uD770\uC0C9',
   brown: '\uAC08\uC0C9', yellow: '\uB178\uB791', purple: '\uBCF4\uB77C', gray: '\uD68C\uC0C9', pink: '\uBD84\uD64D',
   black: '\uAC80\uC815',
+};
+// Runtime copy of silhouette_color.json's palette. The validator cross-checks
+// both the hex codes and every species classification so file:// play stays
+// synchronous without letting the supplied JSON drift from the game data.
+const HINT_COLOR_HEX = {
+  red: '#FF0000', blue: '#0000FF', yellow: '#FFFF00', green: '#008000',
+  black: '#000000', brown: '#A52A2A', purple: '#800080', gray: '#808080',
+  white: '#FFFFFF', pink: '#FFC0CB',
 };
 const HINT_SHAPE_NAMES = {
   quadruped: '\uB124\uBC1C\uD615', upright: '\uC9C1\uB9BD\uD615', wings: '\uB0A0\uAC1C\uD615', squiggle: '\uAFC8\uD2C0\uD615',

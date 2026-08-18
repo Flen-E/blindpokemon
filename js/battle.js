@@ -10,11 +10,14 @@ function accStageMul(s) { return s >= 0 ? (3 + s) / 3 : 3 / (3 - s); }
 function freshStages() { return { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, acc: 0, eva: 0 }; }
 function freshVolatiles() { return { flinch: false, confuse: 0, seeded: false }; }
 
-// Mystery mode keeps battles readable while making every damage source less
-// decisive. The Gen 3 formula below is preserved, then scaled at the final
-// damage boundary so moves, fixed damage, status damage, and recoil agree.
-const BATTLE_DAMAGE_SCALE = 0.5;
+// Use the standard Gen 3 damage pace. Keeping every damage source behind the
+// same boundary preserves the minimum-one rule for fixed/status/recoil damage.
+const BATTLE_DAMAGE_SCALE = 1;
 function battleDamage(raw) { return Math.max(1, Math.floor(raw * BATTLE_DAMAGE_SCALE)); }
+
+// The opponent occupies a smaller front-view slot than the player's close-up
+// rear view, matching the usual battle-camera perspective.
+const BATTLE_ENEMY_SPRITE_SIZE = 76;
 
 // Gen 3 damage formula: ((2L/5+2) * Power * A/D) / 50 + 2, then
 // crit x2, STAB x1.5, type effectiveness, random 85-100%.
@@ -88,7 +91,8 @@ class BattleSession {
     this.eStages = freshStages();
     this.vol = { player: freshVolatiles(), enemy: freshVolatiles() };
     this.runAttempts = 0;
-    this.revealedHints = [];
+    this.revealedHints = Array.isArray(this.enemy.revealedHints)
+      ? [...new Set(this.enemy.revealedHints)] : [];
     this.playerSkillUses = 0;
     // Trainer opponents are mystery targets too; every enemy in the party
     // remains anonymous so hints are useful in both battle types.
@@ -99,7 +103,7 @@ class BattleSession {
     this.evoQueue = [];
     this.over = false;
     this.result = null;
-    // canvas scene state (96px sprites = exact 2x of the 96px sources)
+    // canvas scene state (the player keeps the close-up 96px rear view)
     this.fx = {
       p: { x: 18, y: 32, vis: false, flash: 0, dy: 0 },
       e: { x: 124, y: -6, vis: false, flash: 0, dy: 0, scale: 1 },
@@ -227,7 +231,7 @@ class BattleSession {
     // slide in
     this.fx.e.vis = true; this.fx.e.x = 260;
     this.tween(this.fx.e, 'x', 124, 450);
-    this.revealRandomHint();
+    this.revealOpeningHint();
     if (this.wild) {
       await UI.say('정체를 알 수 없는 야생 포켓몬이 나타났다!');
       if (this.enemy.shiny) {
@@ -423,13 +427,27 @@ class BattleSession {
     return this.revealedHints.length < HINT_DEFINITIONS.length;
   }
 
+  rememberRevealedHints() {
+    this.enemy.revealedHints = [...new Set(this.revealedHints)];
+  }
+
+  revealHint(id) {
+    if (!HINT_DEFINITIONS.some(def => def.id === id) || this.revealedHints.includes(id)) return null;
+    this.revealedHints.push(id);
+    this.rememberRevealedHints();
+    UI.setHints(this.enemy, this.revealedHints);
+    return id;
+  }
+
+  revealOpeningHint() {
+    return this.revealHint('color') || this.revealRandomHint();
+  }
+
   revealRandomHint() {
     const locked = HINT_DEFINITIONS.filter(h => !this.revealedHints.includes(h.id));
     if (!locked.length) return null;
     const picked = locked[randInt(0, locked.length - 1)].id;
-    this.revealedHints.push(picked);
-    UI.setHints(this.enemy, this.revealedHints);
-    return picked;
+    return this.revealHint(picked);
   }
 
   revealRandomHints(count) {
@@ -470,8 +488,7 @@ class BattleSession {
 
   async useScannerItem(id) {
     Game.player.bag[id]--;
-    this.enemy.identified = true;
-    this.enemy.unknown = false;
+    identifyCreature(this.enemy);
     UI.setBox('enemy', this.enemy);
     UI.setHints(null, []);
     Sfx.statUp();
@@ -486,9 +503,7 @@ class BattleSession {
   revealKnownTypeHint(move, targetSide) {
     if (targetSide !== 'enemy' || this.enemy.identified || this.isHintExemptMove(move)) return;
     const id = `def_${move.type}`;
-    if (!HINT_DEFINITIONS.some(def => def.id === id) || this.revealedHints.includes(id)) return;
-    this.revealedHints.push(id);
-    UI.setHints(this.enemy, this.revealedHints);
+    this.revealHint(id);
   }
 
   async useBagItem(id, targetIdx) {
@@ -850,6 +865,18 @@ class BattleSession {
   async resolveFaints() {
     // Enemy faint
     if (this.enemy.hp <= 0 && !this.over) {
+      // Defeating a mystery opponent is itself a full identification event.
+      // Reveal the real sprite while it is still visible, then play the faint
+      // animation so the result never disappears behind an already-fallen
+      // silhouette. Scanner-identified opponents skip the duplicate reveal.
+      if (!this.enemy.identified) {
+        identifyCreature(this.enemy);
+        UI.setBox('enemy', this.enemy);
+        UI.clearHints();
+        Sfx.statUp();
+        await UI.flashScreen(2);
+        await UI.say(`쓰러진 상대의 정체는 ${speciesName(this.enemy)}였다!`);
+      }
       Sfx.faint();
       await this.faintAnim(this.fx.e);
       if (!this.wild) UI.setEnemyBalls(this.enemyParty); // darken the fallen one
@@ -861,9 +888,10 @@ class BattleSession {
       await this.awardExp();
       if (!this.wild && next !== -1) {
         this.enemyIdx = next;
-        this.revealedHints = [];
+        this.revealedHints = Array.isArray(this.enemy.revealedHints)
+          ? [...new Set(this.enemy.revealedHints)] : [];
         this.playerSkillUses = 0;
-        this.revealRandomHint();
+        this.revealOpeningHint();
         this.eStages = freshStages();
         this.vol.enemy = freshVolatiles();
         this.participants = new Set(this.active.hp > 0 ? [this.active.uid] : []);
@@ -1004,6 +1032,7 @@ class BattleSession {
       await UI.flashScreen(4);
       const oldMax = c.maxHp;
       c.species = sp.evolve.to;
+      c.revealedHints = [];
       calcStats(c);
       c.hp = Math.min(c.maxHp, c.hp + (c.maxHp - oldMax));
       if (c === this.active && this.fx.p.vis) UI.setBox('player', this.active);
@@ -1173,13 +1202,13 @@ class BattleSession {
       ctx.fillStyle = 'rgba(24,48,24,.28)';
       ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     };
-    if (e.vis) shadow(e.x + 48, 90, 32);
+    if (e.vis) shadow(e.x + 48, 90, 26);
     if (p.vis) shadow(p.x + 48, 127, 36);
     if (orb.vis) shadow(orb.x, 84, 9);
 
     if (e.vis && (e.flash <= 0 || Math.floor(e.flash / 3) % 2 === 0)) {
       const sc = e.scale === undefined ? 1 : e.scale;
-      const sz = 96 * sc;
+      const sz = BATTLE_ENEMY_SPRITE_SIZE * sc;
       const x = e.x + (96 - sz) / 2, y = e.y + e.dy + (96 - sz);
       if (this.enemy.identified) {
         const img = GameAssets.frontFor(this.enemy.species, this.enemy.shiny) || Sprites.creature(this.enemy.species);

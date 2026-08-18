@@ -69,10 +69,14 @@ const requireAudio = (file, label) => {
   if (!fs.readdirSync(path.dirname(file)).includes(exactName)) {
     err(`${label} filename casing differs from runtime path ${exactName}`);
   }
-  const signature = fs.readFileSync(file).subarray(0, 4).toString('ascii');
+  const bytes = fs.readFileSync(file);
+  const signature = bytes.subarray(0, 4).toString('ascii');
   const ext = path.extname(file).toLowerCase();
   if (ext === '.ogg' && signature !== 'OggS') err(`${label} is not a valid OGG`);
   if (ext === '.mid' && signature !== 'MThd') err(`${label} is not a valid MIDI`);
+  if (ext === '.m4a' && (bytes.subarray(4, 8).toString('ascii') !== 'ftyp' || bytes.length < 100_000)) {
+    err(`${label} is not a valid non-empty M4A`);
+  }
 };
 
 // 1. Map rows: consistent width, known tile chars
@@ -930,13 +934,25 @@ for (const [key, track] of Object.entries(BGM_TRACKS)) {
     continue;
   }
   for (const source of track.sources) {
-    if (path.extname(source).toLowerCase() !== '.ogg') {
+    if (!['.ogg', '.m4a'].includes(path.extname(source).toLowerCase())) {
       err(`BGM ${key} uses browser-incompatible runtime source ${source}`);
     }
     if (checkedBgmSources.has(source)) continue;
     checkedBgmSources.add(source);
     requireAudio(path.join(__dirname, source), `BGM ${key} ${source}`);
   }
+}
+const mapThemeKeys = new Set(Object.values(MAPS).map(map => map.bgm));
+for (const key of mapThemeKeys) {
+  if (!BGM_TRACKS[key]) err(`map theme ${key} has no BGM track`);
+}
+const primaryMapSources = new Set([...mapThemeKeys].map(key => BGM_TRACKS[key]?.sources[0]));
+if (primaryMapSources.size < 12) {
+  err(`map BGM variety regressed to ${primaryMapSources.size} primary tracks`);
+}
+if (BGM_TRACKS.center.sources[0] === BGM_TRACKS.mart.sources[0] ||
+    new Set(['route1', 'route2', 'route3'].map(key => BGM_TRACKS[key].sources[0])).size !== 3) {
+  err('center, mart, or route themes are no longer musically distinct');
 }
 
 // Switching theme metadata must not reload a source that is already playing.
@@ -958,23 +974,27 @@ global.Audio = class {
 Bgm.play('home');
 mockAudio.currentTime = 37;
 const sharedSourceLoads = mockAudio.loadCount;
-Bgm.play('town');
+Bgm.play('home');
 if (mockAudio.loadCount !== sharedSourceLoads || mockAudio.currentTime !== 37) {
-  err('map BGM reloads or loses its playhead when theme keys share one source');
+  err('map BGM reloads or loses its playhead when the same theme continues');
 }
-if (mockAudio.volume !== BGM_TRACKS.town.volume) {
-  err('shared-source BGM transition does not apply the destination volume');
+if (mockAudio.volume !== BGM_TRACKS.home.volume) {
+  err('continued map BGM does not retain its theme volume');
 }
 mockAudio.ended = true;
 mockAudio.currentTime = 37;
-Bgm.play('town');
+Bgm.play('home');
 if (mockAudio.loadCount !== sharedSourceLoads || mockAudio.currentTime !== 0) {
   err('replaying an ended BGM does not restart without reloading its source');
 }
 mockAudio.ended = false;
-Bgm.play('cave');
+Bgm.play('town');
 if (mockAudio.loadCount !== sharedSourceLoads + 1) {
   err('different map BGM sources do not load exactly once');
+}
+Bgm.play('cave');
+if (mockAudio.loadCount !== sharedSourceLoads + 2) {
+  err('a second distinct map BGM source does not load exactly once');
 }
 Bgm.stop();
 if (mockAudio.src) err('stopped BGM retains its source');
@@ -1032,8 +1052,13 @@ const uiSource = fs.readFileSync(path.join(__dirname, 'js', 'ui.js'), 'utf8');
 const styleSource = fs.readFileSync(path.join(__dirname, 'css', 'style.css'), 'utf8');
 const htmlSource = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 if (!htmlSource.includes('id="hints-minimize"') || !uiSource.includes('toggleHintsMinimized') ||
-    !uiSource.includes('hint-defense-grid') || !styleSource.includes('#battle-hints.minimized')) {
+    !uiSource.includes('hint-defense-grid') || !uiSource.includes('hintRecordScreen') ||
+    !uiSource.includes('hint-color-swatch') || !styleSource.includes('#battle-hints.minimized') ||
+    !styleSource.includes('.companion-hint-screen')) {
   err('compact observation record is missing its minimize control or separate defense row');
+}
+if (!uiSource.includes("input.value.trim().slice(0, 20)") || uiSource.includes("input.value.trim().slice(0, 12)")) {
+  err('guess input length handling disagrees with the 20-character modal limit');
 }
 if (/hints-toggle|toggleHintsSize|hint-light|battle-hints\.expanded/.test(htmlSource + uiSource + styleSource) ||
     /[Gg] = \uAD00\uCC30 \uAE30\uB85D/.test(htmlSource)) {
@@ -1068,6 +1093,26 @@ const silhouetteChoices = new Map();
 const normalizeSpeciesName = value => String(value)
   .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/♀/g, 'f').replace(/♂/g, 'm').replace(/[^a-z0-9]/g, '');
+const colorJson = JSON.parse(fs.readFileSync(path.join(silhouetteDir, 'silhouette_color.json'), 'utf8'));
+const colorAssignments = new Map();
+for (const [colorName, group] of Object.entries(colorJson)) {
+  const colorId = colorName.toLowerCase();
+  if (!group || !Array.isArray(group.value) || HINT_COLOR_HEX[colorId] !== group.color) {
+    err(`silhouette color JSON group ${colorName} is malformed or has the wrong hex code`);
+    continue;
+  }
+  for (const speciesName of group.value) {
+    const key = normalizeSpeciesName(speciesName);
+    if (!colorAssignments.has(key)) colorAssignments.set(key, new Set());
+    colorAssignments.get(key).add(colorId);
+  }
+}
+for (const speciesId of Object.keys(SPECIES)) {
+  const jsonColors = colorAssignments.get(normalizeSpeciesName(speciesId));
+  if (!jsonColors || !jsonColors.has(HINT_DATA[speciesId].color)) {
+    err(`${speciesId} hint color ${HINT_DATA[speciesId].color} disagrees with silhouette_color.json (${jsonColors ? [...jsonColors].join('/') : 'missing'})`);
+  }
+}
 for (const [shapeName, group] of Object.entries(silhouetteJson)) {
   if (!group || !/^asset(?:[1-9]|1[0-4])$/.test(group.image) || !Array.isArray(group.value)) {
     err(`silhouette JSON group ${shapeName} is malformed`);
@@ -1107,6 +1152,23 @@ for (let i = 1; i <= 14; i++) {
 const battleSource = fs.readFileSync(path.join(__dirname, 'js', 'battle.js'), 'utf8');
 if (!/drawMysterySilhouette\(ctx, this\.active\.species,[\s\S]{0,100}'back'\)/.test(battleSource)) {
   err('unidentified player battler no longer requests a rear-view silhouette');
+}
+if (!/const BATTLE_DAMAGE_SCALE = 1;/.test(battleSource) || /const BATTLE_DAMAGE_SCALE = 0\.5;/.test(battleSource)) {
+  err('battle damage is not restored to the standard 1x pace');
+}
+if (!/const BATTLE_ENEMY_SPRITE_SIZE = 76;/.test(battleSource) ||
+    !/revealHint\('color'\)/.test(battleSource) ||
+    !battleSource.includes('rememberRevealedHints')) {
+  err('enemy sprite sizing, color-first clues, or persistent battle hints are missing');
+}
+if (!/if \(!this\.enemy\.identified\)[\s\S]{0,260}identifyCreature\(this\.enemy\)[\s\S]{0,260}쓰러진 상대의 정체는/.test(battleSource)) {
+  err('defeated mystery opponents no longer reveal their real identity before leaving battle');
+}
+const overworldSource = fs.readFileSync(path.join(__dirname, 'js', 'overworld.js'), 'utf8');
+const saveSource = fs.readFileSync(path.join(__dirname, 'js', 'save.js'), 'utf8');
+if (!overworldSource.includes('firstScannerTutorial') || !overworldSource.includes('guess_unlocked') ||
+    !overworldSource.includes('실망하며 도망갔다') || !saveSource.includes('revealedHints')) {
+  err('scanner tutorial, gated guessing, release consequence, or hint save migration is missing');
 }
 for (const speciesId of Object.keys(SPECIES)) {
   const asset = mysterySilhouetteAsset(speciesId);
@@ -1168,12 +1230,40 @@ requirePng(path.join(__dirname, 'assets/Graphics/Items/RARECANDY.png'), 'Rare Ca
 // 6. makeCreature smoke test for every species
 for (const id of Object.keys(SPECIES)) {
   const c = makeCreature(id, 10);
-  if (!(c.maxHp > 10 && c.moves.length >= 1 && c.moves.length <= 4 && c.identified === false && c.nickname === '')) err(`makeCreature(${id}) bad: hp=${c.maxHp} moves=${c.moves.length}`);
-  c.nickname = '틀린 추측';
-  if (creatureName(c) !== '틀린 추측') err(`unidentified ${id} does not keep its guess name`);
-  c.identified = true;
+  if (!(c.maxHp > 10 && c.moves.length >= 1 && c.moves.length <= 4 && c.identified === false &&
+      c.nickname === '' && Array.isArray(c.revealedHints) && c.revealedHints.length === 0)) {
+    err(`makeCreature(${id}) bad: hp=${c.maxHp} moves=${c.moves.length}`);
+  }
+  if (!guessMatchesSpecies(c, speciesName(c)) || !guessMatchesSpecies(c, id) || guessMatchesSpecies(c, '완전히틀린이름')) {
+    err(`guess matching failed for ${id}`);
+  }
+  identifyCreature(c);
   if (creatureName(c) !== speciesName(c)) err(`Scanner name/sprite identity mismatch for ${id}`);
 }
+
+// 7. Scanner tutorial gate: only the saved first-partner UID unlocks guessing.
+const starterForGate = makeCreature('bulbasaur', 6);
+const otherForGate = makeCreature('pidgey', 5);
+global.Game = {
+  player: {
+    party: [starterForGate, otherForGate],
+    flags: {
+      starter: true,
+      starter_uid: starterForGate.uid,
+      first_partner_scanned: false,
+      guess_unlocked: false,
+    },
+  },
+};
+identifyCreature(otherForGate);
+if (Game.player.flags.first_partner_scanned || Game.player.flags.guess_unlocked) {
+  err('scanning a non-starter incorrectly unlocks name guessing');
+}
+identifyCreature(starterForGate);
+if (!Game.player.flags.first_partner_scanned || !Game.player.flags.guess_unlocked) {
+  err('scanning the first partner does not unlock name guessing');
+}
+delete global.Game;
 
 console.log(errors === 0 ? 'ALL CHECKS PASSED' : `${errors} ERRORS`);
 process.exit(errors ? 1 : 0);

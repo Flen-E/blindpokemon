@@ -65,13 +65,15 @@ The game is fully playable on phones, in **landscape only**:
    family/research lane keep every tutorial destination within one readable loop.
 2. Choose one of three starter candidates at Prof. MAPLE's lab. Their cards
    show JSON-classified body-shape silhouettes and original descriptions; names and
-   types stay hidden until the choice is made.
-3. Your rival REX grabs the type-advantaged starter and battles you on the spot.
+   types stay hidden until the choice is made. MAPLE then requires the player
+   to use a Scanner on that first partner; completing the hands-on tutorial
+   reveals it and unlocks the name-guessing feature.
+3. Your rival REX grabs the type-advantaged starter and battles you after the
+   Scanner tutorial.
 4. FERNWAY TRAIL is now a two-bridge, branching Lv 3–5 riverside route whose encounter
    table deliberately includes one early Pokémon from **every Generation
    1–9**: Pidgey, Sentret, Zigzagoon, Starly, Lillipup, Fletchling, Grubbin,
-   Rookidee, and Pawmi. The opening partner starts at Lv 6 so the
-   mystery-mode 0.5x damage pace is less punishing.
+   Rookidee, and Pawmi. The opening partner starts at Lv 6.
 5. SPROUTWOOD is a larger looping pre-gym forest with hedge lanes, clearings,
    interconnected side paths, mixed-generation encounters, and the first story quest:
    ecologist ARA asks the player to recover stolen observation data from a
@@ -129,10 +131,13 @@ The game is fully playable on phones, in **landscape only**:
   the supplied 14-category silhouette dataset. Opponents use the front-view
   set while the player's active Pokémon uses the matching rear-view set, and every
   unidentified Pokémon name is fixed to `???`. Wild encounters
-  and trainer battles reveal one random clue from a 26-slot
+  and trainer battles reveal clues from a 26-slot
   board: height, weight, catch rate, color, gender ratio, EXP
   growth, previous/next evolution presence, and one defensive clue for each
-  of the 18 types. One clue opens when battle starts, then one random clue
+  of the 18 types. The supplied `silhouette_color.json` classification is the
+  source of truth for each species color, and `색깔` is always the first clue
+  opened when battle starts. Its name and color swatch appear immediately.
+  One random clue
   opens after every two player skills selected from Fight. A damaging move's
   type matchup directly fills that type's defensive clue; False Swipe
   (칼등치기) is the exception. The Bag's reusable `Hint ?` item reveals exactly two unrevealed
@@ -143,14 +148,19 @@ The game is fully playable on phones, in **landscape only**:
   and use direct labels such as `드래곤 2X`, `바위 4X`, or a dual resistance's
   `풀 0.25X`. Previous/next
   evolution currently display `O`/`X`; those value slots are isolated so they
-  can later show level, special, friendship, item, or trade methods.
+  can later show level, special, friendship, item, or trade methods. Every
+  opened clue is saved on a caught creature and can be reviewed from the
+  Party or PC `관찰 기록` screen.
 - **Scanner:** the player starts with three finite `Scanner` items. Using one
   during battle identifies the current opponent and consumes the turn; using
   one from the overworld Bag identifies an already-caught mystery partner.
   An identified creature keeps its real name and sprite after capture and in
-  future party/battle screens. If the player entered an incorrect guess name,
-  scanning now replaces that display name with the real species name at the
-  same moment the real sprite appears, so identity text and art cannot disagree.
+  future party/battle screens. Guessing stays locked until MAPLE's first-partner
+  Scanner tutorial is completed. Afterwards, a correct species-name guess
+  removes the silhouette and identifies the partner; a wrong answer releases
+  that partner after showing that it left in disappointment. Defeating any
+  unidentified wild or trainer opponent also reveals its real name and front
+  sprite before the faint animation completes.
   Defeating the first Fernway trainer awards one
   additional Scanner, completing Ara's stolen-data quest awards another, and
   defeating Murmurwood's forest keeper and the White Mist quartermaster each
@@ -219,18 +229,19 @@ The game is fully playable on phones, in **landscape only**:
   the Squirtle line, and generator gardens favor Electric/Bug/Steel. Lakeglass,
   Brightgear, and Everbloom use walkable flower patches as optional encounter
   zones, leaving each city's main roads safe.
-- **Guess names:** from the Party menu, choose `이름 추측/변경` to give a caught
-  mystery partner a nickname. The nickname replaces `???` in menus and battle
-  messages without revealing the real species or changing the silhouette; an
-  empty entry clears it back to `???`.
+- **Name guessing:** after the first-partner Scanner tutorial, choose `이름 추측`
+  from the Party menu. A correct Korean or species-id answer identifies the
+  partner and reveals its real art. A wrong answer reveals the real name in the
+  message `(포켓몬)은(는) 실망하며 도망갔다` and releases it. The last remaining
+  party member cannot be risked this way.
 - **PC and Summary:** Center terminals manage the existing six-member party
   and BOX 1 storage. At least one active partner must remain. The supplied PC
   and Summary skins are used locally, and all identity rules still apply:
   unscanned creatures keep their body-shape silhouette, `???` name, and hidden type.
   Scanners can also be consumed directly inside storage.
-- Mystery battle damage is scaled to **0.5x** for move damage, fixed damage,
-  confusion, recoil, poison/burn chip, and Leech Seed drain (with a minimum
-  of 1 damage so attacks still function).
+- Battle damage uses the standard **1x Gen 3 formula** for moves, fixed damage,
+  confusion, recoil, poison/burn chip, and Leech Seed drain, with the existing
+  minimum of 1 damage where applicable.
 - Hint measurements, colors, gender ratios, growth rates, evolution presence, and
   capture rates are stored locally in `js/data/hints.js`; the canonical
   Pokédex source used while preparing that table is [PokéAPI](https://pokeapi.co/).
@@ -356,10 +367,13 @@ The game is fully playable on phones, in **landscape only**:
   tall tree's trunk plus visible canopy footprint are both solid to movement
   and NPC placement.
 - The supplied `Audio` pack provides local title, exploration, wild/trainer/
-  leader battle, and victory music. Runtime selection uses browser-compatible
-  OGG sources directly so file:// play cannot stall on an unsupported MIDI;
+  leader battle, and victory music. Supplied map MIDI references are rendered
+  ahead of time to browser-compatible AAC/M4A, with OGG fallbacks, so homes,
+  towns, cities, the lab, all three routes, forests, caves, the lake,
+  Pokémon Centers, marts, and gyms each use an appropriate distinct theme
+  without making file:// play depend on MIDI decoding;
   map changes, battle return, tab resume, and unmute all retry the active track.
-  Moving between maps backed by the same OGG keeps the current playhead while
+  Moving between maps backed by the same audio source keeps the current playhead while
   applying the destination theme's volume and loop settings.
   `M` mutes both this music and the synthesized sound effects.
 - Sprite/character/tile designs **© Nintendo / Creatures Inc. / GAME FREAK
@@ -486,8 +500,9 @@ BATTLE SYSTEM (Gen 3 mechanics)
   derived from `assets/Graphics/Silhouette/silhouette.json`; opponents use the
   original front-view assets and the player's active creature uses a matching
   generated rear-view asset so the battle perspective remains coherent. They
-  show the 26-slot mystery clue board. Wild and trainer battles open one clue
-  on entry and one random clue after every two player Fight skills. Damaging
+  show the 26-slot mystery clue board. Wild and trainer battles always open
+  the JSON-backed color clue on entry and one random clue after every two
+  player Fight skills. Damaging
   moves also reveal the matching defensive type clue directly; False Swipe
   (칼등치기) does not. Using the reusable Hint item opens exactly two random locked clues,
   makes a weaker recoil-free Hint attack, and then gives the enemy its normal
@@ -496,26 +511,30 @@ BATTLE SYSTEM (Gen 3 mechanics)
   a minus/plus button that minimizes or restores the record without an expanded view;
   keep previous/next evolution as O/X slots whose value functions can later
   expose level, special, friendship, item, or trade methods;
-  party-management screens also use the same shape silhouettes and `???` labels.
+  persist every revealed clue on captured creatures, expose those values through
+  Party/PC observation-record screens, and keep party-management silhouettes and
+  `???` labels until identification.
 - The finite Scanner identifies the current opponent without dealing damage,
   but still gives the enemy its normal turn. It can also identify an already-
   caught party member from the overworld Bag; only identified creatures reveal
   their real names and sprites. Revealing a creature also overrides any wrong
   player-entered guess with the real species name so the revealed art and text
   always refer to the same species.
-- Give the player three Scanners at the start and award one after the first
-  route trainer is defeated; keep Scanner counts finite and save the revealed
-  identity on the creature.
-- Let the player assign or clear a nickname for any caught mystery party
-  member from the Party menu; render that nickname while retaining hidden
-  species data and silhouette art.
+- Give the player three Scanners at the start, require a hands-on first-partner
+  Scanner tutorial before the rival battle, and keep name guessing locked until
+  that scan succeeds. Continue awarding one after the first route trainer.
+- Resolve Party-menu guesses immediately: identify/reveal on an exact answer,
+  or release the partner with its disappointment message on a wrong answer.
+- When a mystery opponent faints, reveal its real name and front sprite before
+  it leaves the field; this applies to every wild encounter and every member of
+  a trainer party, while already scanned opponents skip the duplicate reveal.
 - Add a Center PC backed by the saved vault: deposit/withdraw with a party
   limit of six and at least one active member, use Scanners on boxed partners,
   and open a Summary screen. Unidentified summaries must hide name, type, and
   real sprite just like battle and party screens.
 - Gen 3 damage formula: ((2L/5+2) * power * A/D)/50 + 2, then crit x2
-  (1/16 base, 1/8 high-crit), STAB 1.5, type effectiveness, random 85-100%,
-  followed by the mystery-mode 0.5x damage scale.
+  (1/16 base, 1/8 high-crit), STAB 1.5, type effectiveness, and random 85-100%
+  at the standard 1x damage pace.
 - Stat stages -6..+6 for Atk/Def/SpA/SpD/Spe AND accuracy/evasion
   (3-based multiplier), burn halving physical attack, paralysis quartering
   speed with 25% full paralysis, sleep 2-4 turns, freeze with 20% thaw and
@@ -714,10 +733,10 @@ UI / POLISH
   monospace fallback), synthesized Web Audio SFX for every interaction
   (cursor, confirm, hits by effectiveness, faint, heal jingle, level-up,
   catch sequence, badge fanfare), plus local looping BGM for title, every map,
-  wild/trainer/leader battles, and victories. Use browser-decodable local OGG
-  at runtime, including file://, and switch tracks on warps, links, battle
+  wild/trainer/leader battles, and victories. Use browser-decodable local
+  AAC/M4A or OGG at runtime, including file://, and switch tracks on warps, links, battle
   entry/exit, blackout, title return, tab resume, and unmute. Preserve the
-  playhead when adjacent map themes resolve to the same OGG. M mutes and
+  playhead when adjacent map themes resolve to the same audio source. M mutes and
   resumes both SFX and BGM.
 - Save system: localStorage slot plus an exportable/importable base64 save
   code (title screen has CONTINUE / NEW GAME / IMPORT CODE). Loading validates

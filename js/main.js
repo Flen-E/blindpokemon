@@ -16,7 +16,7 @@ function newPlayer() {
     bag: { hint: 1, scanner: 3, rarecandy: 100 },
     money: 3000,
     badges: [],
-    flags: {},
+    flags: { first_partner_scanned: false, guess_unlocked: false },
     respawn: { map: 'house', x: 7, y: 7 },
   };
 }

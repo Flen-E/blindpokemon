@@ -857,6 +857,9 @@ const Overworld = (() => {
       } else {
         await UI.say('메이플: 아래쪽 세 선택대는 각각 한 후보 전용이란다. 하나씩 조사해 설명을 비교한 뒤 마음에 드는 장치를 다시 확인하렴.');
       }
+    } else if (!f.first_partner_scanned) {
+      const starter = Game.player.party.find(c => c.uid === f.starter_uid) || Game.player.party[0];
+      await firstScannerTutorial(starter);
     } else {
       await UI.sayLines([
         `메이플: ${creatureName(Game.player.party[0])}와는 잘 지내니? 서로 도망 안 간 걸 보니 훌륭하구나.`,
@@ -864,6 +867,37 @@ const Overworld = (() => {
         '메이플: 몬스터볼도 챙겨. 팀의 빈자리는 가능성이지만, 빈 가방은 그냥 준비 부족이란다.',
       ]);
     }
+  }
+
+  async function firstScannerTutorial(starter) {
+    if (!starter || starter.identified) {
+      if (starter) identifyCreature(starter);
+      return;
+    }
+    if (!(Game.player.bag.scanner > 0)) Game.player.bag.scanner = 1;
+    await UI.sayLines([
+      '메이플: 배틀 전에 가장 중요한 장비부터 익히자. 가방에 넣어 둔 스캐너는 실루엣 뒤의 정체를 확인하는 도구란다.',
+      '메이플: 지금 가방을 열어 스캐너를 선택하고, 방금 만난 첫 파트너에게 사용해 보렴.',
+      '메이플: 첫 스캔을 마치기 전에는 이름을 함부로 추측할 수 없게 해 두었다. 틀린 확신은 관찰보다 위험하거든.',
+    ]);
+    while (!starter.identified) {
+      const id = await UI.bagScreen({});
+      if (id !== 'scanner') {
+        await UI.say('메이플: 이번 연습에서는 가방의 스캐너를 선택하렴. 취소해도 실습은 건너뛸 수 없단다.');
+        continue;
+      }
+      const target = await UI.partyScreen({ title: '첫 파트너에게 스캐너를 사용하세요.', forced: true });
+      if (target < 0 || Game.player.party[target] !== starter) continue;
+      Game.player.bag.scanner--;
+      identifyCreature(starter);
+      Sfx.statUp();
+      await UI.say(`스캐너 결과: ${speciesName(starter)}! 실루엣이 걷히고 진짜 모습이 드러났다!`);
+    }
+    await UI.sayLines([
+      '메이플: 좋아, 이제부터 동료 메뉴의 관찰 기록을 보고 이름을 추측할 수 있단다.',
+      '메이플: 정답이면 스캐너 없이도 모습을 확인할 수 있지만, 틀리면 동료가 실망해서 떠나 버려. 충분히 관찰한 뒤 결정하렴.',
+    ]);
+    UI.toast('이름 추측 기능이 해금되었다!');
   }
 
   async function pedestal(station) {
@@ -881,11 +915,11 @@ const Overworld = (() => {
     if (!id) return; // backed out — the three pedestals stay available
     const ok = await UI.yesNo('이 파트너 후보를 선택할까요?');
     if (!ok) return;
-    // A small opening boost offsets the mystery battle's 0.5x damage pace.
     const starter = makeCreature(id, 6);
     Game.player.party.push(starter);
     Game.player.flags.starter = true;
     Game.player.flags.starter_id = id;
+    Game.player.flags.starter_uid = starter.uid;
     Sfx.caught();
     await UI.say('새로운 파트너가 동료가 되었다! 첫인상은 실루엣이지만 우정은 정상 영업 중이다.');
     await UI.sayLines([
@@ -894,6 +928,7 @@ const Overworld = (() => {
     ]);
     Game.player.bag.pokeball = (Game.player.bag.pokeball || 0) + 5;
     UI.toast('몬스터볼 5개를 손에 넣었다!');
+    await firstScannerTutorial(starter);
 
     // The rival grabs the counter-pick and challenges immediately.
     const rivalId = RIVAL_COUNTER[id];
@@ -1043,6 +1078,7 @@ const Overworld = (() => {
     if (!f.starter && !f.sent_off) return '우리 집 1층 거실에서 엄마에게 여행 준비를 듣자.';
     if (!f.starter && !f.prof_briefed) return '윌로우브룩의 메이플 연구소에서 박사님께 말을 걸자.';
     if (!f.starter) return '연구소 아래쪽의 세 선택대를 조사해 첫 파트너를 선택하자.';
+    if (!f.first_partner_scanned) return '첫 파트너에게 스캐너를 사용해 정체를 확인하자.';
     if (!f.ecology_brief) return '새싹숲의 생태조사원 아라를 찾아가자.';
     if (!f.tr_mist_rookie) return '새싹숲 서쪽에서 도난당한 관측 기록을 되찾자.';
     if (!f.ecology_reward) return '관측 기록을 아라에게 돌려주자.';
@@ -1136,23 +1172,48 @@ const Overworld = (() => {
     while (true) {
       const i = await UI.partyScreen({ title: '동료' });
       if (i === -1) return;
-      const action = await UI.choose(['요약 보기', '이름 추측/변경', '동료 순서 변경', '취소'], {
-        style: { right: '12px', bottom: '112px', width: '190px' },
+      const c = Game.player.party[i];
+      const guessLabel = c.identified
+        ? '정체 확인 완료'
+        : Game.player.flags.guess_unlocked ? '이름 추측' : '이름 추측 (잠김)';
+      const action = await UI.choose(['요약 보기', '관찰 기록', guessLabel, '동료 순서 변경', '취소'], {
+        style: { right: '12px', bottom: '90px', width: '210px' },
       });
       if (action === 0) {
-        await UI.summaryScreen(Game.player.party[i]);
+        await UI.summaryScreen(c);
         continue;
       }
       if (action === 1) {
-        const name = await UI.nicknameModal(Game.player.party[i]);
-        if (name !== null) {
-          Game.player.party[i].nickname = name;
+        await UI.hintRecordScreen(c);
+        continue;
+      }
+      if (action === 2) {
+        if (c.identified) { await UI.say(`${speciesName(c)}은(는) 이미 정체가 확인된 동료다!`); continue; }
+        if (!Game.player.flags.guess_unlocked) {
+          await UI.say('첫 파트너에게 스캐너를 사용하는 튜토리얼을 마쳐야 이름을 추측할 수 있다.');
+          continue;
+        }
+        if (Game.player.party.length <= 1) {
+          await UI.say('마지막 동료를 잃을 수는 없다. 스캐너로 정체를 확인하자.');
+          continue;
+        }
+        const guess = await UI.guessModal(c);
+        if (guess === null) continue;
+        if (!guess.trim()) { await UI.say('추측할 이름을 입력해야 한다.'); continue; }
+        if (guessMatchesSpecies(c, guess)) {
+          identifyCreature(c);
           Sfx.statUp();
-          UI.toast(name ? `이름을 '${name}'(으)로 기록했습니다!` : '이름을 지워 ???로 되돌렸습니다!');
+          await UI.flashScreen(2);
+          await UI.say(`정답이다! 실루엣이 걷히며 ${speciesName(c)}의 모습이 드러났다!`);
+        } else {
+          const actualName = speciesName(c);
+          Game.player.party.splice(i, 1);
+          Sfx.cancel();
+          await UI.say(`${actualName}은(는) 실망하며 도망갔다.`);
         }
         continue;
       }
-      if (action === -1 || action === 3) continue;
+      if (action === -1 || action === 4) continue;
       if (Game.player.party.length < 2) { UI.toast('아직 교체할 동료가 없습니다!'); continue; }
       const j = await UI.partyScreen({ title: '누구와 교체할까요?' });
       if (j === -1 || j === i) continue;
@@ -1222,6 +1283,7 @@ const Overworld = (() => {
     await UI.flashScreen(4);
     const preEvolutionMax = c.maxHp;
     c.species = beforeEvolution.evolve.to;
+    c.revealedHints = [];
     calcStats(c);
     c.hp = Math.min(c.maxHp, c.hp + (c.maxHp - preEvolutionMax));
     await UI.say(`\uCD95\uD558\uD569\uB2C8\uB2E4! ${oldName}\uC774(\uAC00) ${creatureName(c)}(\uC73C)\uB85C \uC9C4\uD654\uD588\uB2E4!`);
@@ -1239,10 +1301,14 @@ const Overworld = (() => {
         if (t === -1) continue;
         const c = Game.player.party[t];
         if (c.identified) { await UI.say('\uC774\uBBF8 \uC815\uCCB4\uAC00 \uBC1D\uD600\uC9C4 \uB3D9\uB8CC\uC785\uB2C8\uB2E4!'); continue; }
-        c.identified = true;
+        const unlockedBefore = Game.player.flags.guess_unlocked === true;
+        identifyCreature(c);
         Game.player.bag[id]--;
         Sfx.statUp();
         await UI.say(`\uC2A4\uCE94\uB108 \uACB0\uACFC: ${speciesName(c)}\uC785\uB2C8\uB2E4!`);
+        if (!unlockedBefore && Game.player.flags.guess_unlocked) {
+          await UI.say('첫 파트너의 스캔을 마쳤다! 이제 동료 메뉴에서 이름을 추측할 수 있다.');
+        }
         continue;
       }
       if (ITEMS[id].kind === 'level') {

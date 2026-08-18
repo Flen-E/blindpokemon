@@ -111,24 +111,25 @@ const Sfx = (() => {
 })();
 
 // Browsers do not reliably decode MIDI, especially when the game is opened
-// directly through file://. Runtime tracks therefore use the supplied OGG
-// files exclusively. The original MIDI files remain development references,
-// but can never strand the player on a silent first source.
+// directly through file://. Exploration themes therefore use browser-safe AAC
+// renders of the supplied MIDI files, with the supplied OGG files as fallbacks.
+// This keeps centers, marts, routes, towns, and dungeons musically distinct
+// without adding a runtime synthesizer or network dependency.
 const BGM_TRACKS = Object.freeze({
   title:         { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.3 },
-  home:          { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.22 },
-  town:          { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.24 },
-  city:          { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.24 },
-  lab:           { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.21 },
-  route1:        { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.25 },
-  forest:        { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.22 },
-  route2:        { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.25 },
-  route3:        { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.25 },
-  cave:          { sources: ['assets/Audio/BGM/Surfing.ogg'], volume: 0.22 },
-  lake:          { sources: ['assets/Audio/BGM/Surfing.ogg'], volume: 0.23 },
-  center:        { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.2 },
-  mart:          { sources: ['assets/Audio/BGM/Title.ogg'], volume: 0.21 },
-  gym:           { sources: ['assets/Audio/BGM/B2W2 212 PWT Final Round!.ogg'], volume: 0.25 },
+  home:          { sources: ['assets/Audio/BGM/Home.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.22 },
+  town:          { sources: ['assets/Audio/BGM/Town.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.24 },
+  city:          { sources: ['assets/Audio/BGM/City.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.24 },
+  lab:           { sources: ['assets/Audio/BGM/Lab.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.21 },
+  route1:        { sources: ['assets/Audio/BGM/Route1.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.25 },
+  forest:        { sources: ['assets/Audio/BGM/Forest.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.22 },
+  route2:        { sources: ['assets/Audio/BGM/Route2.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.25 },
+  route3:        { sources: ['assets/Audio/BGM/Route3.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.25 },
+  cave:          { sources: ['assets/Audio/BGM/Cave.m4a', 'assets/Audio/BGM/Surfing.ogg'], volume: 0.22 },
+  lake:          { sources: ['assets/Audio/BGM/Lake.m4a', 'assets/Audio/BGM/Surfing.ogg'], volume: 0.23 },
+  center:        { sources: ['assets/Audio/BGM/Center.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.2 },
+  mart:          { sources: ['assets/Audio/BGM/Mart.m4a', 'assets/Audio/BGM/Title.ogg'], volume: 0.21 },
+  gym:           { sources: ['assets/Audio/BGM/Gym.m4a', 'assets/Audio/BGM/B2W2 212 PWT Final Round!.ogg'], volume: 0.25 },
   battleWild:    { sources: ['assets/Audio/BGM/Battle wild.ogg'], volume: 0.3 },
   battleTrainer: { sources: ['assets/Audio/BGM/Battle trainer.ogg'], volume: 0.3 },
   battleLeader:  { sources: ['assets/Audio/BGM/B2W2 212 PWT Final Round!.ogg'], volume: 0.3 },
