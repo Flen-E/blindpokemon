@@ -489,6 +489,15 @@ const INDOOR_TILE_ART = {
     x.fillStyle = '#c78058'; x.fillRect(2, 4, 12, 5);
     x.fillStyle = '#67402d'; x.fillRect(2, 13, 2, 3); x.fillRect(12, 13, 2, 3);
   },
+  'Y': (x) => {
+    _floorBase(x);
+    x.strokeStyle = '#39435f'; x.lineWidth = 2;
+    x.beginPath();
+    x.arc(4, 11, 3, 0, Math.PI * 2); x.arc(12, 11, 3, 0, Math.PI * 2);
+    x.moveTo(4, 11); x.lineTo(8, 6); x.lineTo(12, 11); x.lineTo(7, 11); x.lineTo(10, 7);
+    x.stroke();
+    x.fillStyle = '#e1c51f'; x.fillRect(7, 4, 4, 2);
+  },
 };
 
 // ---------- Sprite cache / API ----------

@@ -152,6 +152,10 @@ const TILE_SRC_IN = {
   'k': { s: 'martInterior', x: 0, y: 448, w: 160, h: 32, base: '_', object: 'checkout_counter' },
   'K': { s: 'interiorGeneral', x: 96, y: 4736, w: 128, h: 64, base: '_', ox: 24, oy: 16, object: 'kitchen_counter' },
   'J': { s: 'interiorGeneral', x: 64, y: 5632, w: 64, h: 64, base: '_', ox: 8, oy: 16, object: 'lab_console' },
+  // Four complete bicycles (two rows) from the supplied bicycle-shop sheet.
+  // The old repair-room placeholder was a cave boulder with no relation to
+  // the building's purpose.
+  'Y': { s: 'bikeInterior', x: 64, y: 192, w: 128, h: 64, base: '_', ox: 24, oy: 16, object: 'bike_rack' },
   // Both sofas are two source tiles tall. Starting at y=5056 retained only
   // the seat/front row and discarded the entire backrest at y=5024.
   'n': { s: 'interiorGeneral', x: 64, y: 5024, w: 96, h: 64, base: '_', ox: 16, oy: 16, object: 'blue_sofa' },
@@ -200,6 +204,50 @@ const TILE_SRC_THEME = {
   interior: {
     '_': { s: 'interiorGeneral', x: 0, y: 1888, w: 32, h: 32 },
     'w': { s: 'interiorGeneral', x: 0, y: 64, w: 32, h: 32 },
+  },
+  // Residential and civic rooms use complete, repeatable 32px cells from
+  // different reviewed bands of the supplied Interior general sheet. Pairing
+  // a floor and wall palette per building keeps ordinary doors from opening
+  // onto the same recoloured room while retaining one coherent asset style.
+  bedroom_home: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1120, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 64, y: 0, w: 32, h: 32 },
+  },
+  family_home: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1888, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 32, y: 0, w: 32, h: 32 },
+  },
+  rival_home: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1248, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 192, y: 128, w: 32, h: 32 },
+  },
+  willow_craft: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1504, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 32, y: 0, w: 32, h: 32 },
+  },
+  willow_civic: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1632, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 0, y: 128, w: 32, h: 32 },
+  },
+  stone_workshop: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1024, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 0, y: 0, w: 32, h: 32 },
+  },
+  gear_workshop: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1120, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 64, y: 0, w: 32, h: 32 },
+  },
+  gear_residence: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1888, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 0, y: 192, w: 32, h: 32 },
+  },
+  bloom_nursery: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1760, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 0, y: 544, w: 32, h: 32 },
+  },
+  bloom_study: {
+    '_': { s: 'interiorGeneral', x: 0, y: 1376, w: 32, h: 32 },
+    'w': { s: 'interiorGeneral', x: 192, y: 128, w: 32, h: 32 },
   },
   lab: {
     '_': { s: 'interiorGeneral', x: 0, y: 1888, w: 32, h: 32 },
@@ -255,6 +303,7 @@ const SHEET_FILE = {
   martInterior: 'assets/Graphics/Tilesets/Mart interior.png',
   mansionInterior: 'assets/Graphics/Tilesets/Mansion interior.png',
   gymInterior: 'assets/Graphics/Tilesets/Gyms interior.png',
+  bikeInterior: 'assets/Graphics/Tilesets/Bike shop interior.png',
 };
 
 const BATTLE_BG_FILE = {

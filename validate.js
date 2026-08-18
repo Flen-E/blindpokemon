@@ -38,7 +38,7 @@ const requireAudio = (file, label) => {
 
 // 1. Map rows: consistent width, known tile chars
 const KNOWN = new Set(['.', ',', ':', '=', 'q', 'v', 'l', 'j', 'e', 'z', 't', 'T', 'A', 'C', 'W', 'F', 'f', 'r', 'w', 'D', 's', '_', 'k', 'm', 'b', 'O', 'B', 'h',
-  'R', 'M', 'c', 'g', 'H', 'G', 'P', 'n', '1', '2', '3', 'V', 'p', 'd', 'K', 'J', 'x']);
+  'R', 'M', 'c', 'g', 'H', 'G', 'P', 'n', '1', '2', '3', 'V', 'p', 'd', 'K', 'J', 'Y', 'x']);
 const questIds = new Set();
 const storyKinds = new Set(['signal', 'archive']);
 const trainerFlags = new Set(Object.values(MAPS).flatMap(m => (m.npcs || []).filter(n => n.trainer).map(n => n.trainer.flag)));
@@ -545,6 +545,76 @@ for (const [mapId, expected] of Object.entries(reviewedTownFeatures)) {
     if (!m.npcs?.some(npc => npc.id === npcId)) err(`${mapId} placement references missing npc ${npcId}`);
   }
 }
+
+// Ordinary doors must lead to purpose-built rooms, never to the legacy shared
+// guesthouse. Exact sizes, palette themes, entrances, exits, and residents are
+// locked together so a later town pass cannot silently clone one room again.
+const reviewedOrdinaryInteriors = {
+  willowworkshop: { outside: 'hometown', door: [5, 6], size: [16, 11], theme: 'willow_craft', exit: [8, 9], resident: 'willow_carpenter' },
+  willowhall: { outside: 'hometown', door: [20, 6], size: [20, 13], theme: 'willow_civic', exit: [10, 11], resident: 'willow_archivist' },
+  stoneworkshop: { outside: 'stonegate', door: [27, 7], size: [18, 12], theme: 'stone_workshop', exit: [9, 10], resident: 'stone_forewoman' },
+  gearworkshop: { outside: 'brightgear', door: [6, 8], size: [20, 13], theme: 'gear_workshop', exit: [10, 11], resident: 'gear_repairer' },
+  gearhome: { outside: 'brightgear', door: [30, 8], size: [16, 12], theme: 'gear_residence', exit: [8, 10], resident: 'gear_tenant' },
+  bloomnursery: { outside: 'everbloom', door: [7, 14], size: [22, 14], theme: 'bloom_nursery', exit: [11, 12], resident: 'bloom_nursery_keeper' },
+  bloomstudy: { outside: 'everbloom', door: [30, 14], size: [18, 12], theme: 'bloom_study', exit: [9, 10], resident: 'bloom_reader' },
+};
+const reviewedResidentialThemes = {
+  bedroom_home: [[0, 1120], [64, 0]], family_home: [[0, 1888], [32, 0]],
+  rival_home: [[0, 1248], [192, 128]], willow_craft: [[0, 1504], [32, 0]],
+  willow_civic: [[0, 1632], [0, 128]], stone_workshop: [[0, 1024], [0, 0]],
+  gear_workshop: [[0, 1120], [64, 0]], gear_residence: [[0, 1888], [0, 192]],
+  bloom_nursery: [[0, 1760], [0, 544]], bloom_study: [[0, 1376], [192, 128]],
+};
+for (const [themeId, [floorAt, wallAt]] of Object.entries(reviewedResidentialThemes)) {
+  const theme = TILE_SRC_THEME[themeId];
+  if (!theme || theme._?.s !== 'interiorGeneral' || theme.w?.s !== 'interiorGeneral' ||
+      theme._?.x !== floorAt[0] || theme._?.y !== floorAt[1] ||
+      theme.w?.x !== wallAt[0] || theme.w?.y !== wallAt[1]) {
+    err(`${themeId} no longer uses its reviewed complete floor/wall palette`);
+  }
+}
+if (MAPS.bedroom.tileset !== 'bedroom_home' || MAPS.house.tileset !== 'family_home' ||
+    MAPS.rexhouse.tileset !== 'rival_home') {
+  err('core family homes reverted to one shared interior palette');
+}
+const ordinaryInteriorTargets = new Set();
+for (const [insideId, expected] of Object.entries(reviewedOrdinaryInteriors)) {
+  const inside = MAPS[insideId];
+  const layout = ORDINARY_INTERIOR_LAYOUTS[insideId];
+  const [doorX, doorY] = expected.door;
+  const outsideWarp = MAPS[expected.outside].warps?.[`${doorX},${doorY}`];
+  ordinaryInteriorTargets.add(outsideWarp && outsideWarp.map);
+  if (!outsideWarp || outsideWarp.map !== insideId || outsideWarp.returnTo || outsideWarp.returnWarp ||
+      outsideWarp.x !== expected.exit[0] || outsideWarp.y !== expected.exit[1] - 1) {
+    err(`${expected.outside} door ${doorX},${doorY} does not enter its reviewed ${insideId} room`);
+  }
+  if (!inside || !layout || inside.rows[0].length !== expected.size[0] || inside.rows.length !== expected.size[1] ||
+      layout.size[0] !== expected.size[0] || layout.size[1] !== expected.size[1]) {
+    err(`${insideId} changed from its reviewed ${expected.size.join('x')} plan`);
+    continue;
+  }
+  if (inside.tileset !== expected.theme || inside.roomPlan?.purpose !== layout.purpose) {
+    err(`${insideId} lost its purpose-specific palette or semantic plan`);
+  }
+  const [exitX, exitY] = expected.exit;
+  const exitWarp = inside.warps?.[`${exitX},${exitY}`];
+  if (!exitWarp || exitWarp.map !== expected.outside || exitWarp.x !== doorX || exitWarp.y !== doorY + 1) {
+    err(`${insideId} exit does not return one clear tile below its own exterior door`);
+  }
+  const resident = inside.npcs?.find(npc => npc.id === expected.resident);
+  if (!resident || inside.npcs.length !== 1 || resident.wander !== true || resident.wanderRadius !== 1 ||
+      resident.x !== layout.resident[0] || resident.y !== layout.resident[1]) {
+    err(`${insideId} does not have its reviewed local resident and one-tile activity radius`);
+  }
+}
+if (ordinaryInteriorTargets.size !== Object.keys(reviewedOrdinaryInteriors).length || ordinaryInteriorTargets.has('guesthouse')) {
+  err('ordinary exterior doors still share or reuse an interior destination');
+}
+for (const outsideId of ['hometown', 'stonegate', 'brightgear', 'everbloom']) {
+  if (Object.values(MAPS[outsideId].warps || {}).some(warp => warp.map === 'guesthouse')) {
+    err(`${outsideId} still routes a public door to the legacy shared guesthouse`);
+  }
+}
 const reviewedCorePaths = {
   player: 'assets/Graphics/Characters/boy_run.png',
   player_bike: 'assets/Graphics/Characters/boy_bike.png',
@@ -584,6 +654,7 @@ const furnitureSources = {
   k: ['martInterior', 0, 448, 160, 32, 'checkout_counter'],
   K: ['interiorGeneral', 96, 4736, 128, 64, 'kitchen_counter'],
   J: ['interiorGeneral', 64, 5632, 64, 64, 'lab_console'],
+  Y: ['bikeInterior', 64, 192, 128, 64, 'bike_rack'],
   n: ['interiorGeneral', 64, 5024, 96, 64, 'blue_sofa'],
   V: ['interiorGeneral', 0, 5856, 64, 32, 'television'],
   p: ['interiorGeneral', 64, 5536, 32, 64, 'potted_plant'],
@@ -688,6 +759,11 @@ const requireDistinctLayouts = (ids, label) => {
 };
 requireDistinctLayouts(['healstone', 'healglass', 'healgear', 'healbloom'], 'healing-centre');
 requireDistinctLayouts(['shop1', 'shop2', 'shopgear', 'shopbloom'], 'shop');
+requireDistinctLayouts([
+  'bedroom', 'house', 'rexhouse',
+  'willowworkshop', 'willowhall', 'stoneworkshop', 'gearworkshop',
+  'gearhome', 'bloomnursery', 'bloomstudy',
+], 'residential and ordinary-building');
 
 // 2. Species: learnset moves exist, evolutions exist, sprite art exists, types exist
 for (const [id, sp] of Object.entries(SPECIES)) {

@@ -312,7 +312,7 @@ The game is fully playable on phones, in **landscape only**:
 - Interior floors use the supplied Interior general, Poke Centre, Mart, and Gym
   tilesets, while `W` water cells use wave-textured Sea tiles rather than a
   flat blue filler. House rooms now use identifiable supplied bed, stair,
-  bookshelf, TV, potted plant, desk, sofa, kitchen, PC, research-console,
+  bookshelf, TV, potted plant, desk, sofa, kitchen, bicycle rack, PC, research-console,
   healing-station, checkout, and shelf sprites instead of reusing arbitrary
   floor cells. Multi-cell furniture uses reviewed whole-object source groups
   with matching collision footprints, not a cropped cell from the middle of a
@@ -321,13 +321,18 @@ The game is fully playable on phones, in **landscape only**:
   is depth-rendered so the room border cannot cut it off. The 14×10 starting
   home keeps its bed/study and family living zones compact, with a three-wide
   staircase attached to the upper-right wall instead of a central foyer stair.
-  Every non-outdoor map has
-  a semantic room plan and required set pieces. Bedrooms, living floors, labs,
-  guest homes, healing centers, marts, caves, and four different gym types are
-  validated independently, including NPC approach tiles and routes that remain
-  passable while NPC bodies are treated as obstacles. The four town centers and
-  four marts also have distinct plans—stone symmetry, lakeside lounge, machine
-  service, and plant-lined variants—rather than one room copied eight times.
+  Player, rival, craft, civic, stone, machine, and botanical interiors also use
+  reviewed floor/wall palette pairs from different complete bands of the local
+  sheet. Every non-outdoor map has a semantic room plan and required set pieces.
+  Bedrooms, living floors, labs, ordinary buildings, healing centers, marts,
+  caves, and four different gym types are validated independently, including
+  NPC approach tiles and routes that remain passable while NPC bodies are
+  treated as obstacles. The seven ordinary town doors now lead one-to-one to a
+  carpenter shop, archive hall, stone workshop, repair shop, technician studio,
+  seedling nursery, and botanist home; none reuse the legacy guest room. The four
+  town centers and four marts also have distinct plans—stone symmetry, lakeside
+  lounge, machine service, and plant-lined variants—rather than one room copied
+  eight times.
 - Building collision uses the measured opaque span immediately, even while an
   image is still loading, and the upper roof slice is layered over actors so
   characters can pass through the narrow back lane without rendering on top of
@@ -594,6 +599,9 @@ WORLD & PROGRESSION (FireRed opening arc, original writing)
   whole source rectangles, matching multi-tile collision footprints, clear NPC
   approach tiles, usable counters/PCs/pedestals, and a continuous player route
   with stationary NPCs counted as blockers before accepting a room layout.
+  Never route multiple ordinary houses or workshops into one shared guest room:
+  give every exterior a unique destination, palette, floor plan, resident, and
+  return door tied to that building's role.
   Keep all progression clues intact while giving the cast an original comedic
   game-broadcast tone: confident wrong guesses, self-deprecating defeat excuses,
   light meta jokes, and a rival whose explanations are faster than his wins.

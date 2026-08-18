@@ -7,12 +7,12 @@
 //   l floor valve (walkable)   j closed water gate (opened by a gym valve)
 //   e circuit breaker (walkable)   z electric barrier (opened by a breaker)
 //   B bed     h stairs(warp)   V TV   p plant   d desk   s sofa
-//   K kitchen counter   J lab console
+//   K kitchen counter   J lab console   Y complete bicycle rack
 //   R center roof   M mart roof   c center emblem   g mart emblem   P storage PC
 //   H healing machine   G goods shelf   n bench
 //   1 2 3 starter ball pedestals   x void
 // Solid: T A C W f r w s j z k b O B R M c g H G P n 1 2 3 V p d x  (D, m, h, v, l, e are walkable)
-const SOLID_TILES = new Set(['T', 'A', 'C', 'W', 'f', 'r', 'w', 's', 'j', 'z', 'k', 'K', 'J', 'b', 'O', 'B',
+const SOLID_TILES = new Set(['T', 'A', 'C', 'W', 'f', 'r', 'w', 's', 'j', 'z', 'k', 'K', 'J', 'Y', 'b', 'O', 'B',
   'R', 'M', 'c', 'g', 'H', 'G', 'P', 'n', '1', '2', '3', 'V', 'p', 'd', 'x']);
 
 // Each physical laboratory pedestal owns one candidate. Keeping this beside
@@ -39,6 +39,7 @@ const INTERIOR_FURNITURE_FOOTPRINTS = {
   k: [-2, 0, 5, 1],  // five-tile checkout, centred on its interaction cell
   K: [0, 0, 4, 2],   // complete sink-and-prep counter group
   J: [0, 0, 2, 2],   // 2x2 laboratory console
+  Y: [0, 0, 4, 2],   // complete four-bike rack from the supplied shop sheet
   V: [0, 0, 2, 1],   // 2x1 television and tower group
   p: [0, 0, 1, 2],   // complete plant, leaves and pot
   d: [0, 0, 3, 2],   // three-tile-wide writing desk
@@ -84,7 +85,7 @@ const MAPS = {
     name: '내 방',
     rows: [
       'wwwwwwwwww',
-      'wBB_____hw',
+      'wBB___h__w',
       'w________w',
       'w_b______w',
       'w________w',
@@ -2101,11 +2102,11 @@ MAPS.hometown.npcs = [
   { id: 'willow_keeper', x: 17, y: 17, kind: 'villager2', facing: 'right', special: 'townstory' },
 ];
 
-// A shared interior gives every ordinary exterior a usable door without
-// multiplying near-identical map definitions. The return point is captured
-// at entry, so the player comes back to the exact building they used.
+// Keep the old shared room as a save-compatible fallback for players who
+// saved inside it before ordinary buildings received individual interiors.
+// No reviewed exterior below routes new visits here.
 MAPS.guesthouse = {
-  bgm: 'home', name: '윌로우브룩 주민집',
+  bgm: 'home', name: '여행자 쉼터',
   rows: [
     'wwwwwwwwww', 'w_b______w', 'w________w', 'w________w',
     'w____n___w', 'w________w', 'w____D___w', 'wwwwwwwwww',
@@ -2118,18 +2119,81 @@ MAPS.guesthouse = {
   ] }],
 };
 
+// Ordinary buildings are real places, not seven doors into one cloned room.
+// Each resident and line of dialogue establishes what the building is for;
+// the matching floor plan and furniture are applied after setInteriorRoom is
+// declared below.
+const ORDINARY_INTERIOR_SPECS = {
+  willowworkshop: {
+    name: '윌로우브룩 목공소', tileset: 'willow_craft',
+    resident: { id: 'willow_carpenter', x: 8, y: 5, kind: 'hiker', facing: 'left', wander: true, wanderRadius: 1, dialog: [
+      '연못의 두 줄 다리는 여기서 잘라 맞췄어. 물을 건너는 폭과 사람이 비켜설 폭을 따로 계산했지.',
+      '침대나 텔레비전 대신 작업대가 많은 이유? 여긴 집처럼 생겼어도 목공소니까.',
+    ] },
+  },
+  willowhall: {
+    name: '윌로우브룩 기록회관', tileset: 'willow_civic',
+    resident: { id: 'willow_archivist', x: 10, y: 6, kind: 'villager2', facing: 'down', wander: true, wanderRadius: 1, dialog: [
+      '연못 수위와 북문 통행 기록을 정리하는 회관이야. 양쪽 서가는 오래된 장부와 새 보고서를 나눠 둔 거고.',
+      '가운데 열람석은 비워 뒀어. 기록을 찾는 사람이 책장 사이에 갇히면 회관 설계부터 틀린 거잖아.',
+    ] },
+  },
+  stoneworkshop: {
+    name: '스톤게이트 석공 작업실', tileset: 'stone_workshop',
+    resident: { id: 'stone_forewoman', x: 12, y: 7, kind: 'hiker', facing: 'left', wander: true, wanderRadius: 1, dialog: [
+      '왼쪽 원석은 다듬기 전, 오른쪽 도면대는 납품 전이야. 가운데 장비 통로에는 아무것도 쌓지 않아.',
+      '바위가 많다고 아무 데나 놓으면 작업실이 아니라 장애물 코스가 되거든.',
+    ] },
+  },
+  gearworkshop: {
+    name: '브라이트기어 수리 공방', tileset: 'gear_workshop',
+    resident: { id: 'gear_repairer', x: 16, y: 6, kind: 'villager', facing: 'left', wander: true, wanderRadius: 1, dialog: [
+      '북쪽은 진단 장비, 서쪽은 부품 선반, 남쪽은 상담 벤치야. 수리 동선이 서로 겹치지 않게 나눴지.',
+      '자전거가 빨라도 정비가 엉망이면 결국 걷게 돼. 체인 소리가 거칠면 여기로 가져와.',
+    ] },
+  },
+  gearhome: {
+    name: '브라이트기어 기술자 주택', tileset: 'gear_residence',
+    resident: { id: 'gear_tenant', x: 12, y: 7, kind: 'villager2', facing: 'left', wander: true, wanderRadius: 1, dialog: [
+      '작은 집이라 부엌, 침실, 거실을 세 구역으로 딱 나눴어. 넓기만 한 방보다 훨씬 편해.',
+      '공방에서 돌아오면 여기서는 기계를 안 만져. 텔레비전 소리만큼은 고칠 필요가 없거든.',
+    ] },
+  },
+  bloomnursery: {
+    name: '에버블룸 서쪽 온실', tileset: 'bloom_nursery',
+    resident: { id: 'bloom_nursery_keeper', x: 10, y: 6, kind: 'picnic', facing: 'down', wander: true, wanderRadius: 1, dialog: [
+      '북쪽은 묘목, 양쪽 작업대는 분갈이 구역이야. 출입구까지 이어지는 가운데 길에는 화분을 두지 않아.',
+      '식물이 많아도 정돈되어야 온실이지. 햇빛과 사람 동선을 같이 살펴야 해.',
+    ] },
+  },
+  bloomstudy: {
+    name: '에버블룸 식물 연구가의 집', tileset: 'bloom_study',
+    resident: { id: 'bloom_reader', x: 14, y: 7, kind: 'villager', facing: 'left', wander: true, wanderRadius: 1, dialog: [
+      '여긴 온실이 아니라 연구자의 집이야. 표본 책상과 서재는 위쪽, 침실과 휴식 공간은 아래쪽에 뒀어.',
+      '같은 꽃 마을 건물이어도 사는 곳과 기르는 곳은 구조가 달라야 편하지.',
+    ] },
+  },
+};
+for (const [id, spec] of Object.entries(ORDINARY_INTERIOR_SPECS)) {
+  MAPS[id] = {
+    bgm: 'home', name: spec.name, tileset: spec.tileset,
+    rows: ['wwwwww', 'w____w', 'w____w', 'w_m__w', 'wwwwww'],
+    warps: {}, signs: {}, npcs: [spec.resident],
+  };
+}
+
 const ORDINARY_BUILDING_DOORS = [
-  ['hometown', 5, 6], ['hometown', 20, 6],
-  ['stonegate', 27, 7],
-  ['brightgear', 6, 8], ['brightgear', 30, 8],
-  ['everbloom', 7, 14], ['everbloom', 30, 14],
+  ['hometown', 5, 6, 'willowworkshop'], ['hometown', 20, 6, 'willowhall'],
+  ['stonegate', 27, 7, 'stoneworkshop'],
+  ['brightgear', 6, 8, 'gearworkshop'], ['brightgear', 30, 8, 'gearhome'],
+  ['everbloom', 7, 14, 'bloomnursery'], ['everbloom', 30, 14, 'bloomstudy'],
 ];
-for (const [mapId, x, y] of ORDINARY_BUILDING_DOORS) {
+for (const [mapId, x, y, interiorId] of ORDINARY_BUILDING_DOORS) {
   const m = MAPS[mapId];
   const key = `${x},${y}`;
   if (!m || !m.rows[y] || x < 0 || x >= m.rows[y].length) continue;
   m.rows[y] = m.rows[y].slice(0, x) + 'D' + m.rows[y].slice(x + 1);
-  if (!m.warps[key]) m.warps[key] = { map: 'guesthouse', x: 5, y: 5, facing: 'down', returnTo: true };
+  if (!m.warps[key]) m.warps[key] = { map: interiorId, x: 3, y: 2, facing: 'up' };
 }
 MAPS.hometown.rows[23] = MAPS.hometown.rows[23].slice(0, 6) + 'D' + MAPS.hometown.rows[23].slice(7);
 MAPS.hometown.rows[23] = MAPS.hometown.rows[23].slice(0, 22) + 'D' + MAPS.hometown.rows[23].slice(23);
@@ -2182,9 +2246,10 @@ paintTownDecor('everbloom', [
 // Give each interior family a coherent floor. Gyms deliberately use distinct
 // supplied floor sets so a rock arena, pool course, machine room, and greenhouse
 // no longer look like the same house with different obstacles.
-for (const id of ['bedroom', 'house', 'rexhouse', 'guesthouse']) {
-  MAPS[id].tileset = 'interior';
-}
+MAPS.bedroom.tileset = 'bedroom_home';
+MAPS.house.tileset = 'family_home';
+MAPS.rexhouse.tileset = 'rival_home';
+MAPS.guesthouse.tileset = 'interior';
 MAPS.lab.tileset = 'lab';
 MAPS.gym.tileset = 'stone_gym';
 MAPS.tidegym.tileset = 'tide_gym';
@@ -2220,8 +2285,8 @@ function setInteriorRoom(id, width, height, placements) {
 }
 
 // Every home now has a readable purpose. The bedroom is for sleeping/studying;
-// downstairs is a living/dining/kitchen floor (no random bed); Rex's home and
-// the shared guest home each keep a private sleep corner and a social area.
+// downstairs is a living/dining/kitchen floor (no random bed), and Rex's home
+// keeps a private sleep corner and a separate social area.
 setInteriorRoom('bedroom', 14, 10, [
   [10, 2, 'h'], [1, 1, 'B'], [4, 1, 'b'], [7, 1, 'V'],
   [1, 5, 'd'], [5, 5, 'p'],
@@ -2249,6 +2314,78 @@ setInteriorRoom('guesthouse', 18, 12, [
   [2, 2, 'B'], [5, 2, 'b'], [9, 2, 'V'], [15, 2, 'p'],
   [11, 5, 'd'], [5, 7, 'n'], [10, 8, 's'], [9, 10, 'm'],
 ]);
+
+// Seven ordinary exteriors receive seven purpose-built rooms. Sizes, palette,
+// furniture zones, residents, and exits are intentionally different; only the
+// common doorway mat is shared as part of the game's architectural language.
+const ORDINARY_INTERIOR_LAYOUTS = {
+  willowworkshop: {
+    size: [16, 11], outside: ['hometown', 5, 7], exit: [8, 9], resident: [13, 7],
+    purpose: 'pond-bridge carpenter workshop', required: ['b', 'J', 'd', 'n', 's', 'p', 'm'],
+    placements: [
+      [2, 2, 'b'], [5, 2, 'd'], [10, 2, 'J'], [13, 2, 'p'],
+      [2, 6, 's'], [8, 6, 'n'], [8, 9, 'm'],
+    ],
+  },
+  willowhall: {
+    size: [20, 13], outside: ['hometown', 20, 7], exit: [10, 11], resident: [10, 6],
+    purpose: 'village archive and public reading hall', required: ['b', 'V', 'd', 'n', 's', 'p', 'm'],
+    placements: [
+      [2, 2, 'b'], [5, 2, 'd'], [9, 2, 'V'], [15, 2, 'b'], [18, 2, 'p'],
+      [3, 7, 'n'], [12, 7, 's'], [10, 11, 'm'],
+    ],
+  },
+  stoneworkshop: {
+    size: [18, 12], outside: ['stonegate', 27, 8], exit: [9, 10], resident: [12, 7],
+    purpose: 'stonecutting floor with raw-material and drafting zones', required: ['O', 'b', 'J', 'd', 's', 'p', 'm'],
+    placements: [
+      [2, 2, 'O'], [4, 2, 'O'], [7, 2, 'J'], [11, 2, 'd'], [15, 2, 'b'],
+      [2, 7, 's'], [7, 7, 'O'], [14, 7, 'p'], [9, 10, 'm'],
+    ],
+  },
+  gearworkshop: {
+    size: [20, 13], outside: ['brightgear', 6, 9], exit: [10, 11], resident: [16, 6],
+    purpose: 'bicycle diagnostics and repair workshop', required: ['b', 'G', 'J', 'Y', 'V', 'd', 's', 'p', 'm'],
+    placements: [
+      [2, 2, 'J'], [6, 2, 'G'], [11, 2, 'd'], [17, 2, 'p'],
+      [2, 7, 'b'], [6, 7, 's'], [12, 7, 'V'], [15, 7, 'Y'], [10, 11, 'm'],
+    ],
+  },
+  gearhome: {
+    size: [16, 12], outside: ['brightgear', 30, 9], exit: [8, 10], resident: [12, 7],
+    purpose: 'compact technician studio residence', required: ['B', 'b', 'K', 'V', 'n', 'p', 'm'],
+    placements: [
+      [1, 2, 'K'], [6, 2, 'V'], [10, 2, 'b'], [13, 2, 'p'],
+      [2, 7, 'B'], [6, 7, 'n'], [8, 10, 'm'],
+    ],
+  },
+  bloomnursery: {
+    size: [22, 14], outside: ['everbloom', 7, 15], exit: [11, 12], resident: [10, 6],
+    purpose: 'seedling nursery and repotting greenhouse', required: ['b', 'K', 'd', 'p', 'm'],
+    placements: [
+      [2, 2, 'p'], [4, 2, 'p'], [6, 2, 'p'], [9, 2, 'K'], [17, 2, 'b'],
+      [2, 8, 'd'], [7, 8, 'p'], [11, 8, 'p'], [15, 8, 'd'], [11, 12, 'm'],
+    ],
+  },
+  bloomstudy: {
+    size: [18, 12], outside: ['everbloom', 30, 15], exit: [9, 10], resident: [14, 7],
+    purpose: 'botanist residence with separated study and sleep zones', required: ['B', 'b', 'V', 'd', 'n', 'p', 'm'],
+    placements: [
+      [2, 2, 'b'], [5, 2, 'd'], [10, 2, 'V'], [14, 2, 'p'],
+      [2, 7, 'B'], [6, 7, 'n'], [13, 7, 'p'], [9, 10, 'm'],
+    ],
+  },
+};
+for (const [id, layout] of Object.entries(ORDINARY_INTERIOR_LAYOUTS)) {
+  setInteriorRoom(id, layout.size[0], layout.size[1], layout.placements);
+  const [exitX, exitY] = layout.exit;
+  const [outside, outsideX, outsideY] = layout.outside;
+  MAPS[id].warps = {
+    [`${exitX},${exitY}`]: { map: outside, x: outsideX, y: outsideY, facing: 'down' },
+  };
+  const resident = MAPS[id].npcs[0];
+  resident.x = layout.resident[0]; resident.y = layout.resident[1];
+}
 
 // Keep both home transitions against architectural edges: stairs climb along
 // the upper-right wall and the complete threshold mat sits at the lower exit.
@@ -2399,9 +2536,12 @@ if (guestResident) { guestResident.x = 15; guestResident.y = 7; guestResident.fa
 MAPS.hometown.warps['6,23'] = { map: 'house', x: 7, y: 7, facing: 'up' };
 MAPS.hometown.warps['27,17'] = { map: 'rexhouse', x: 9, y: 9, facing: 'up' };
 MAPS.hometown.warps['22,23'] = { map: 'lab', x: 11, y: 13, facing: 'up' };
-for (const [mapId, x, y] of ORDINARY_BUILDING_DOORS) {
+for (const [mapId, x, y, interiorId] of ORDINARY_BUILDING_DOORS) {
   const warp = MAPS[mapId].warps[`${x},${y}`];
-  if (warp && warp.map === 'guesthouse') { warp.x = 9; warp.y = 9; warp.facing = 'up'; }
+  const layout = ORDINARY_INTERIOR_LAYOUTS[interiorId];
+  if (warp && layout && warp.map === interiorId) {
+    warp.x = layout.exit[0]; warp.y = layout.exit[1] - 1; warp.facing = 'up';
+  }
 }
 
 // A room plan makes the intended use of every non-outdoor map explicit. The
@@ -2427,8 +2567,11 @@ const INTERIOR_ROOM_PLANS = {
   circuitgym: { purpose: 'breaker and barrier arena', required: ['O', 'z', 'e', 'm'] },
   mistworks: { purpose: 'waterside observation base', required: ['O', 's', 'W'] },
   mirrorgym: { purpose: 'greenhouse warp arena', required: ['O', 'F', 'm'] },
-  guesthouse: { purpose: 'resident bedroom and living room', required: ['B', 'b', 'V', 'd', 'n', 's', 'p', 'm'] },
+  guesthouse: { purpose: 'legacy traveller room for save compatibility', required: ['B', 'b', 'V', 'd', 'n', 's', 'p', 'm'] },
 };
+for (const [id, layout] of Object.entries(ORDINARY_INTERIOR_LAYOUTS)) {
+  INTERIOR_ROOM_PLANS[id] = { purpose: layout.purpose, required: layout.required };
+}
 for (const [id, plan] of Object.entries(INTERIOR_ROOM_PLANS)) MAPS[id].roomPlan = plan;
 for (const m of Object.values(MAPS)) {
   if (m.outdoor) continue;
@@ -2526,6 +2669,13 @@ const NPC_VISUAL_ASSIGNMENTS = {
     petal_rin: 'trainer_aromalady', petal_maru: 'trainer_ranger_m',
     petal_somi: 'trainer_beauty', eloa: 'leader_eloa',
   },
+  willowworkshop: { willow_carpenter: 'npc05' },
+  willowhall: { willow_archivist: 'npc18' },
+  stoneworkshop: { stone_forewoman: 'trainer_ruinmaniac' },
+  gearworkshop: { gear_repairer: 'trainer_engineer' },
+  gearhome: { gear_tenant: 'npc24' },
+  bloomnursery: { bloom_nursery_keeper: 'trainer_aromalady' },
+  bloomstudy: { bloom_reader: 'npc06' },
   guesthouse: { guest_resident: 'npc03' },
 };
 for (const [mapId, m] of Object.entries(MAPS)) {
@@ -2572,8 +2722,9 @@ function stampTownBuilding(canvas, type, doorX, doorY) {
   canvas.set(doorX, doorY, 'D');
 }
 
-function guestWarp() {
-  return { map: 'guesthouse', x: 9, y: 9, facing: 'up', returnTo: true };
+function ordinaryInteriorWarp(interiorId) {
+  const layout = ORDINARY_INTERIOR_LAYOUTS[interiorId];
+  return { map: interiorId, x: layout.exit[0], y: layout.exit[1] - 1, facing: 'up' };
 }
 
 function retargetInteriorExit(interiorId, outsideId, x, y) {
@@ -2632,7 +2783,8 @@ const TOWN_LAYOUT_PLANS = {
   c.set(17, 13, 's');
   MAPS.hometown.rows = c.rows();
   MAPS.hometown.warps = {
-    '5,6': guestWarp(), '20,6': guestWarp(),
+    '5,6': ordinaryInteriorWarp('willowworkshop'),
+    '20,6': ordinaryInteriorWarp('willowhall'),
     '5,18': { map: 'house', x: 7, y: 7, facing: 'up' },
     '12,18': { map: 'rexhouse', x: 9, y: 9, facing: 'up' },
     '20,18': { map: 'lab', x: 11, y: 13, facing: 'up' },
@@ -2674,7 +2826,7 @@ const TOWN_LAYOUT_PLANS = {
   MAPS.stonegate.rows = c.rows();
   MAPS.stonegate.warps = {
     '6,7': { map: 'gym', x: 6, y: 9, facing: 'up' },
-    '27,7': guestWarp(),
+    '27,7': ordinaryInteriorWarp('stoneworkshop'),
     '6,21': { map: 'healstone', x: 10, y: 11, facing: 'up' },
     '27,21': { map: 'shop1', x: 10, y: 10, facing: 'up' },
   };
@@ -2760,7 +2912,8 @@ const TOWN_LAYOUT_PLANS = {
   MAPS.brightgear.rows = c.rows();
   MAPS.brightgear.warps = {
     '18,7': { map: 'circuitgym', x: 11, y: 20, facing: 'up' },
-    '6,8': guestWarp(), '30,8': guestWarp(),
+    '6,8': ordinaryInteriorWarp('gearworkshop'),
+    '30,8': ordinaryInteriorWarp('gearhome'),
     '6,23': { map: 'healgear', x: 9, y: 12, facing: 'up' },
     '30,23': { map: 'shopgear', x: 9, y: 11, facing: 'up' },
   };
@@ -2811,7 +2964,8 @@ const TOWN_LAYOUT_PLANS = {
   MAPS.everbloom.rows = c.rows();
   MAPS.everbloom.warps = {
     '19,6': { map: 'mirrorgym', x: 13, y: 20, facing: 'up' },
-    '7,14': guestWarp(), '30,14': guestWarp(),
+    '7,14': ordinaryInteriorWarp('bloomnursery'),
+    '30,14': ordinaryInteriorWarp('bloomstudy'),
     '7,23': { map: 'healbloom', x: 11, y: 12, facing: 'up' },
     '31,23': { map: 'shopbloom', x: 11, y: 12, facing: 'up' },
   };
