@@ -31,7 +31,7 @@ const NPC_FIXED_SPECIALS = new Set([
 // middle of a bed, bookcase, or sofa even though the anchor tile is blocked.
 const INTERIOR_FURNITURE_FOOTPRINTS = {
   B: [0, 0, 2, 2],   // 2x2 bed group, anchored at its top-left tile
-  h: [0, -1, 3, 2],  // wall staircase; lower-left anchor is the warp approach
+  h: [-2, -1, 3, 2], // wall staircase; lower-right anchor is the warp approach
   b: [0, 0, 2, 3],   // 2x3 bookshelf group, anchored at its top-left tile
   G: [0, 0, 3, 2],   // 3x2 mart goods shelf
   H: [0, 0, 4, 2],   // complete 4x2 healing station (placeholder row excluded)
@@ -2288,11 +2288,11 @@ function setInteriorRoom(id, width, height, placements) {
 // downstairs is a living/dining/kitchen floor (no random bed), and Rex's home
 // keeps a private sleep corner and a separate social area.
 setInteriorRoom('bedroom', 14, 10, [
-  [10, 2, 'h'], [1, 1, 'B'], [4, 1, 'b'], [7, 1, 'V'],
+  [12, 2, 'h'], [1, 1, 'B'], [4, 1, 'b'], [7, 1, 'V'],
   [1, 5, 'd'], [5, 5, 'p'],
 ]);
 setInteriorRoom('house', 14, 10, [
-  [10, 2, 'h'], [1, 1, 'K'], [6, 1, 'V'], [1, 4, 'b'],
+  [12, 2, 'h'], [1, 1, 'K'], [6, 1, 'V'], [1, 4, 'b'],
   [5, 4, 'n'], [9, 6, 'd'], [3, 7, 'p'], [7, 8, 'm'],
 ]);
 setInteriorRoom('rexhouse', 18, 12, [
@@ -2387,11 +2387,11 @@ for (const [id, layout] of Object.entries(ORDINARY_INTERIOR_LAYOUTS)) {
   resident.x = layout.resident[0]; resident.y = layout.resident[1];
 }
 
-// Keep both home transitions against architectural edges: stairs climb along
-// the upper-right wall and the complete threshold mat sits at the lower exit.
-MAPS.bedroom.warps = { '10,2': { map: 'house', x: 10, y: 3, facing: 'down' } };
+// Keep both home transitions against architectural edges. The supplied flight
+// is entered at its lower-right step; the complete threshold mat is below.
+MAPS.bedroom.warps = { '12,2': { map: 'house', x: 12, y: 3, facing: 'down' } };
 MAPS.house.warps = {
-  '10,2': { map: 'bedroom', x: 10, y: 3, facing: 'down' },
+  '12,2': { map: 'bedroom', x: 12, y: 3, facing: 'down' },
   '7,8': { map: 'hometown', x: 6, y: 24, facing: 'down' },
 };
 MAPS.rexhouse.warps = { '9,10': { map: 'hometown', x: 27, y: 18, facing: 'down' } };

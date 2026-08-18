@@ -86,23 +86,15 @@ const Input = (() => {
 // ---------------- UI ----------------
 const UI = (() => {
   const $ = id => document.getElementById(id);
-  let dlg, dlgText, dlgArrow, menuLayer, fadeEl, hintPanel, hintGrid, hintCount, hintToggle, vsIntro;
+  let dlg, dlgText, dlgArrow, menuLayer, fadeEl, hintPanel, hintGrid, hintCount, hintMinimize, vsIntro;
 
   function init() {
     dlg = $('dialog'); dlgText = $('dialog-text'); dlgArrow = $('dialog-arrow');
     menuLayer = $('menu-layer'); fadeEl = $('fade');
     vsIntro = $('vs-intro');
     hintPanel = $('battle-hints'); hintGrid = $('hint-grid'); hintCount = $('hints-count');
-    hintToggle = $('hints-toggle');
-    if (hintToggle) hintToggle.addEventListener('click', () => toggleHintsSize());
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat || (e.key !== 'g' && e.key !== 'G')) return;
-      if (e.target && e.target.tagName === 'TEXTAREA') return;
-      if (typeof Game !== 'undefined' && Game.mode === 'battle') {
-        e.preventDefault();
-        toggleHintsSize();
-      }
-    });
+    hintMinimize = $('hints-minimize');
+    if (hintMinimize) hintMinimize.addEventListener('click', () => toggleHintsMinimized());
   }
 
   // Creature thumbnail: real front sprite if loaded, else the drawn fallback.
@@ -121,26 +113,26 @@ const UI = (() => {
     return cv;
   }
 
-  // Starter candidates use an unrelated species silhouette as a visual decoy
-  // so the real candidate cannot be identified from its body outline.
+  // Every unidentified creature uses its JSON-classified body-shape asset.
+  // A canvas lets the lazy image repaint after load while keeping a safe
+  // question-mark silhouette if that local PNG is unavailable.
   function creatureSilhouetteThumb(species, px) {
-    const decoy = mysterySilhouetteSpecies(species);
-    const source = GameAssets.frontFor(decoy) || Sprites.creature(decoy);
     const cv = document.createElement('canvas');
-    cv.width = source.width; cv.height = source.height;
-    const x = cv.getContext('2d');
-    x.drawImage(source, 0, 0);
-    x.globalCompositeOperation = 'source-in';
-    x.fillStyle = '#090b10';
-    x.fillRect(0, 0, cv.width, cv.height);
-    x.globalCompositeOperation = 'source-over';
+    cv.width = 96; cv.height = 96;
+    const ctx = cv.getContext('2d');
+    const paint = () => {
+      ctx.clearRect(0, 0, 96, 96);
+      GameAssets.drawMysterySilhouette(ctx, species, 0, 0, 96);
+    };
+    const source = GameAssets.silhouetteFor(species);
+    paint();
+    if (source && !GameAssets._ready(source)) source.addEventListener('load', paint, { once: true });
     cv.style.cssText = `width:${px}px;height:${px}px;image-rendering:pixelated`;
     return cv;
   }
 
   // Storage icons use the supplied two-frame icon sheets when available.
-  // Unidentified creatures deliberately keep the unrelated silhouette used
-  // everywhere else, so opening the PC cannot reveal their real outline.
+  // Unidentified creatures keep the same body-shape silhouette everywhere.
   function creatureStorageThumb(c, px) {
     if (!c.identified) return creatureSilhouetteThumb(c.species, px);
     const img = GameAssets.iconFor(c.species, c.shiny);
@@ -396,45 +388,56 @@ const UI = (() => {
     clearHints();
   }
 
-  // Render all 27 slots at once so the player can see which clues remain
-  // locked. The panel itself is passive; the hint item is used through Bag.
+  // Render all slots at once so revealed values are readable immediately.
+  // Defensive matchups live in their own grid and always begin with Normal.
   function setHints(c, revealed) {
     if (!hintPanel || !c || !c.unknown) { clearHints(); return; }
     const open = new Set(revealed || []);
     hintPanel.classList.remove('hidden');
     hintCount.textContent = `${open.size}/${HINT_DEFINITIONS.length}`;
     hintGrid.innerHTML = '';
+    const facts = document.createElement('div');
+    facts.className = 'hint-section hint-facts-grid';
+    const defenses = document.createElement('div');
+    defenses.className = 'hint-section hint-defense-grid';
     for (const def of HINT_DEFINITIONS) {
       const card = document.createElement('div');
       const isOpen = open.has(def.id);
-      card.className = 'hint-card' + (isOpen ? ' open' : '');
+      const isDefense = def.id.startsWith('def_');
+      card.className = 'hint-card' + (isOpen ? ' open' : '') + (isDefense ? ' defense' : '');
       const label = document.createElement('span');
       label.className = 'hint-key';
       label.textContent = def.label;
       const value = document.createElement('span');
       value.className = 'hint-value';
       value.textContent = isOpen ? hintValue(c, def.id) : '?';
-      const light = document.createElement('span');
-      light.className = 'hint-light' + (isOpen ? ' on' : '');
-      light.setAttribute('aria-label', isOpen ? 'hint revealed' : 'hint locked');
-      card.appendChild(label); card.appendChild(value); card.appendChild(light);
-      hintGrid.appendChild(card);
+      card.appendChild(label); card.appendChild(value);
+      (isDefense ? defenses : facts).appendChild(card);
     }
+    hintGrid.appendChild(facts);
+    hintGrid.appendChild(defenses);
   }
 
   function clearHints() {
     if (!hintPanel) return;
     hintPanel.classList.add('hidden');
-    hintPanel.classList.remove('expanded');
-    if (hintToggle) hintToggle.textContent = 'G';
+    hintPanel.classList.remove('minimized');
+    updateHintsMinimizeButton(false);
     if (hintGrid) hintGrid.innerHTML = '';
   }
 
-  function toggleHintsSize() {
+  function updateHintsMinimizeButton(minimized) {
+    if (!hintMinimize) return;
+    hintMinimize.textContent = minimized ? '+' : '\u2212';
+    hintMinimize.setAttribute('aria-label', minimized ? '관찰 기록 복원' : '관찰 기록 최소화');
+    hintMinimize.setAttribute('aria-expanded', String(!minimized));
+  }
+
+  function toggleHintsMinimized() {
     if (!hintPanel || hintPanel.classList.contains('hidden')) return false;
-    const expanded = hintPanel.classList.toggle('expanded');
-    if (hintToggle) hintToggle.textContent = expanded ? 'G-' : 'G+';
-    return expanded;
+    const minimized = hintPanel.classList.toggle('minimized');
+    updateHintsMinimizeButton(minimized);
+    return minimized;
   }
 
   // Tween HP from -> to over ~600ms.
@@ -543,7 +546,7 @@ const UI = (() => {
       party.forEach((c, i) => {
         const slot = document.createElement('div');
         slot.className = 'party-slot' + (i === sel ? ' sel' : '') + (c.hp <= 0 ? ' fainted' : '');
-        // Mystery creatures use unrelated silhouettes until a Scanner
+        // Mystery creatures use their body-shape silhouettes until a Scanner
         // identifies them. This applies to party management, healing-center
         // flows, item targets, and battle switching alike.
         const revealed = c.identified === true;
@@ -1002,7 +1005,7 @@ const UI = (() => {
     fadeOut, fadeIn, flashScreen, leaderVsIntro,
     setBox, setStatusChip, setEnemyBalls, hideBoxes, animateHp, animateExp,
     moveMenu, partyScreen, summaryScreen, storageScreen, bagScreen, shopScreen, starterChoice,
-    setHints, clearHints, toggleHintsSize,
+    setHints, clearHints, toggleHintsMinimized,
     saveModal, importModal, nicknameModal,
   };
 })();

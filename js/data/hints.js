@@ -141,20 +141,18 @@ const HINT_DEFINITIONS = [
   { id: 'weight', label: '\uBAB8\uBB34\uAC8C', value: d => `${d.weight.toFixed(1)} kg` },
   { id: 'catchRate', label: '\uD3EC\uD68D\uB960', value: d => `${d.catchRate}/255` },
   { id: 'color', label: '\uC0C9\uAE54', value: d => HINT_COLOR_NAMES[d.color] },
-  { id: 'shape', label: '\uBAB8 \uD615\uD0DC', value: d => HINT_SHAPE_NAMES[d.shape] },
   { id: 'gender', label: '\uC131\uBE44', value: d => `\uC218 ${d.gender.split('/')[0]}% / \uC554 ${d.gender.split('/')[1]}%` },
   { id: 'growth', label: '\uACBD\uD5D8\uCE58', value: d => HINT_GROWTH_NAMES[d.growth] },
-  { id: 'previous', label: '\uC774\uC804 \uC9C4\uD654', value: d => d.previous ? '\uC788\uC74C' : '\uC5C6\uC74C' },
-  { id: 'next', label: '\uB2E4\uC74C \uC9C4\uD654', value: d => d.next ? '\uC788\uC74C' : '\uC5C6\uC74C' },
+  // These remain simple availability slots for now. Their value functions can
+  // later expose level, item, friendship, special, or trade evolution methods.
+  { id: 'previous', label: '\uC774\uC804 \uC9C4\uD654', value: d => d.previous ? 'O' : 'X' },
+  { id: 'next', label: '\uB2E4\uC74C \uC9C4\uD654', value: d => d.next ? 'O' : 'X' },
   ...DEFENSE_HINT_TYPES.map(type => ({
     id: `def_${type}`,
-    label: `${HINT_TYPE_NAMES[type]} \uBC29\uC5B4`,
+    label: HINT_TYPE_NAMES[type],
     value: (d, c) => {
       const mult = typeEffectiveness(type, SPECIES[c.species].types);
-      if (mult === 0) return '\uBB34\uD6A8';
-      if (mult > 1) return `\uC57D\uC810 x${mult}`;
-      if (mult < 1) return `\uBC18\uAC10 x${mult}`;
-      return '\uBCF4\uD1B5';
+      return `${mult}X`;
     },
   })),
 ];
@@ -170,10 +168,34 @@ function hintLabel(id) {
   return def ? def.label : '?';
 }
 
-// Visual decoy only: the returned species is never used for battle stats,
-// names, hints, capture, or evolution. Excluding the real species prevents
-// the silhouette from accidentally becoming a useful answer.
-function mysterySilhouetteSpecies(excludeId) {
-  const pool = Object.keys(HINT_DATA).filter(id => id !== excludeId);
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : excludeId;
+// Runtime-safe derivative of assets/Graphics/Silhouette/silhouette.json.
+// Keeping the lookup in JS preserves direct file:// play; validate.js checks
+// every entry against the source JSON so this table cannot drift silently.
+const MYSTERY_SILHOUETTE_GROUPS = Object.freeze({
+  asset1: ['gastly', 'glimmet', 'glimmora'],
+  asset2: ['oddish', 'roggenrola', 'wooper'],
+  asset4: ['caterpie', 'weedle', 'grubbin', 'vikavolt'],
+  asset5: ['bulbasaur', 'ivysaur', 'venusaur', 'rattata', 'raticate', 'pikachu', 'sentret', 'furret',
+    'zigzagoon', 'linoone', 'lillipup', 'herdier', 'stoutland', 'pawmi', 'mareep', 'rockruff', 'lycanroc',
+    'houndour', 'houndoom', 'shinx', 'luxio', 'luxray', 'fidough', 'dachsbun'],
+  asset6: ['butterfree', 'beedrill', 'frosmoth'],
+  asset8: ['boldore', 'gigalith'],
+  asset10: ['charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'raichu',
+    'sandshrew', 'sandslash', 'mankey', 'primeape', 'pawmo', 'pawmot', 'gengar', 'flaaffy', 'ampharos',
+    'quagsire', 'drilbur', 'goodra', 'frigibax', 'arctibax', 'baxcalibur'],
+  asset11: ['gloom', 'vileplume', 'ralts', 'kirlia', 'gardevoir', 'tinkatink', 'tinkatuff', 'tinkaton', 'excadrill'],
+  asset12: ['pidgey', 'pidgeotto', 'pidgeot', 'spearow', 'fearow', 'zubat', 'golbat', 'starly', 'staravia',
+    'staraptor', 'fletchling', 'fletchinder', 'talonflame', 'rookidee', 'corvisquire', 'corviknight',
+    'noibat', 'noivern', 'swablu', 'altaria', 'rowlet', 'dartrix', 'decidueye'],
+  asset13: ['metapod', 'kakuna', 'charjabug', 'snom', 'goomy', 'sliggoo'],
+  asset14: ['haunter'],
+});
+
+const MYSTERY_SILHOUETTE_ASSET = Object.freeze(Object.fromEntries(
+  Object.entries(MYSTERY_SILHOUETTE_GROUPS)
+    .flatMap(([asset, speciesIds]) => speciesIds.map(speciesId => [speciesId, asset]))
+));
+
+function mysterySilhouetteAsset(speciesId) {
+  return MYSTERY_SILHOUETTE_ASSET[speciesId] || null;
 }
