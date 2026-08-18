@@ -140,8 +140,8 @@ const TILE_SRC_IN = {
   // A single three-tile wall flight. The former six-tile ceremonial mansion
   // staircase belonged in a foyer, not a compact family home, and made its
   // centre look like the usable step. This flight rises into the right wall;
-  // its lower-left cell is the actual warp approach.
-  'h': { s: 'mansionInterior', x: 96, y: 672, w: 96, h: 64, base: '_', ox: 16, object: 'wall_staircase' },
+  // its lower-right cell is the actual warp approach, so its art extends left.
+  'h': { s: 'mansionInterior', x: 96, y: 672, w: 96, h: 64, base: '_', ox: -16, object: 'wall_staircase' },
   'G': { s: 'martInterior', x: 160, y: 416, w: 96, h: 64, base: '_', ox: 16, oy: 16, object: 'goods_shelf' },
   // The next sheet row contains red-X placeholders, so the complete upper
   // machine/counter bank is intentionally a 4x2 object rather than 4x3.
@@ -193,11 +193,18 @@ const TILE_SRC_IN = {
 // listed here fall back to the standard indoor/outdoor table, then to the
 // code-drawn tile art if the image is unavailable.
 const TILE_SRC_THEME = {
-  // The supplied dungeon files are RMXP autotile templates whose red X cells
-  // mean "unused". They are not regular 32px tile sheets, so themed maps use
-  // the proven outdoor/indoor slices instead of drawing editor markers.
+  // The forest template still falls back to the proven outdoor slices. Cave
+  // maps use only visually reviewed, complete cells from the supplied dungeon
+  // sheet; its red-X editor placeholders are deliberately not referenced.
   forest: {},
-  cave: {},
+  cave: {
+    '_': { variants: [
+      { s: 'caveFloor', x: 32, y: 64, w: 32, h: 32 },
+      { s: 'caveFloor', x: 32, y: 96, w: 32, h: 32 },
+    ] },
+    'w': { s: 'dungeonCave', x: 64, y: 0, w: 32, h: 32 },
+    's': { s: 'dungeonCave', x: 224, y: 160, w: 32, h: 32, base: '_' },
+  },
   // Clean, full-tile rows from the supplied pack. The previous generic
   // indoor slices crossed transparent unused cells, which made rooms look
   // like broken furniture pasted over holes.
@@ -304,6 +311,8 @@ const SHEET_FILE = {
   mansionInterior: 'assets/Graphics/Tilesets/Mansion interior.png',
   gymInterior: 'assets/Graphics/Tilesets/Gyms interior.png',
   bikeInterior: 'assets/Graphics/Tilesets/Bike shop interior.png',
+  caveFloor: 'assets/Graphics/Autotiles/Brown cave floor.png',
+  dungeonCave: 'assets/Graphics/Tilesets/Dungeon cave.png',
 };
 
 const BATTLE_BG_FILE = {
@@ -480,7 +489,7 @@ const GameAssets = {
   // Lazily populated caches — an Image is created the first time something
   // actually needs it (current map's sheets, on-screen NPC kinds, the
   // species in the active battle...), never all at once at boot.
-  front: {}, back: {}, icons: {}, items: {},
+  front: {}, back: {}, icons: {}, items: {}, silhouettes: {},
   sheets: {}, chars: {}, buildings: {}, battleBgs: {}, trainerVisuals: {},
 
   init() { /* nothing eager — everything loads on demand */ },
@@ -536,6 +545,48 @@ const GameAssets = {
     const dir = shiny ? 'Icons shiny' : 'Icons';
     const i = this._lazy(this.icons, key, `assets/Graphics/Pokemon/${dir}/${graphicsFile}.png`);
     return this._ready(i) ? i : null;
+  },
+  // Shape silhouettes are shared by every species in the same body category.
+  // Battle allies use matching rear-view art; menus and opponents use front.
+  // Return the lazy image even before it is ready so DOM canvases can repaint
+  // on load; drawMysterySilhouette supplies a code-drawn fallback meanwhile.
+  silhouetteFor(species, view = 'front') {
+    const asset = mysterySilhouetteAsset(species);
+    if (!asset) return null;
+    const backView = view === 'back';
+    const key = `${backView ? 'back' : 'front'}:${asset}`;
+    const file = backView ? `Back/${asset}.png` : `${asset}.png`;
+    return this._lazy(this.silhouettes, key, `assets/Graphics/Silhouette/${file}`);
+  },
+  drawMysterySilhouette(ctx, species, x, y, width, height = width, view = 'front') {
+    const backView = view === 'back';
+    const img = this.silhouetteFor(species, view);
+    if (this._ready(img)) {
+      ctx.drawImage(img, x, y, width, height);
+      return true;
+    }
+    // Missing/loading assets must not reveal the real sprite shape.
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(width / 96, height / 96);
+    ctx.fillStyle = '#090b10';
+    if (backView) {
+      // A loading/missing rear asset must still face away and must never leak
+      // the real species outline during the first battle frame.
+      ctx.beginPath(); ctx.arc(48, 31, 19, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(48, 62, 30, 27, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(27, 72, 17, 17); ctx.fillRect(52, 72, 17, 17);
+    } else {
+      ctx.beginPath(); ctx.ellipse(48, 58, 31, 25, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(48, 30, 19, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f4f0e8';
+      ctx.font = 'bold 30px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', 48, 46);
+    }
+    ctx.restore();
+    return false;
   },
   itemIconUrl(itemId) {
     return itemIconPath(itemId);
@@ -733,6 +784,11 @@ const GameAssets = {
       this.frontFor(species, true); this.backFor(species, true); this.iconFor(species, true);
     }
     for (const id of Object.keys(ITEM_ICON_FILE)) this.itemIconImg(id);
+    for (const speciesIds of Object.values(MYSTERY_SILHOUETTE_GROUPS)) {
+      const species = speciesIds[0];
+      this.silhouetteFor(species);
+      this.silhouetteFor(species, 'back');
+    }
     for (const s of Object.keys(SHEET_FILE)) this._sheet(s);
     for (const b of ['house', 'center', 'mart']) this._building(b);
     for (const kind of CHAR_FILES) this._lazy(this.chars, kind, characterPath(kind));

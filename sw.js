@@ -1,7 +1,7 @@
 // Simple cache-first service worker so the installed PWA runs offline.
 // Bump this whenever JS/CSS behavior changes so cache-first clients do not
 // keep running an older battle implementation.
-const CACHE = 'firered-v16';
+const CACHE = 'firered-v19';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(

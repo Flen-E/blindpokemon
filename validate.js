@@ -1,6 +1,7 @@
 // Dev-only data validation (node validate.js). Not loaded by the game.
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 global.document = { createElement: () => ({ getContext: () => ({ fillRect(){}, drawImage(){}, strokeRect(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){}, fill(){}, ellipse(){}, arc(){}, save(){}, restore(){}, translate(){}, rotate(){}, fillText(){} }), width: 0, height: 0 }) };
 global.window = {};
 
@@ -23,6 +24,44 @@ const requirePng = (file, label) => {
   const bytes = fs.readFileSync(file).subarray(0, 8);
   const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   if (bytes.length !== png.length || png.some((byte, i) => bytes[i] !== byte)) err(`${label} is not a valid PNG`);
+};
+const pngAlphaRange = bytes => {
+  const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+  if (bytes[24] !== 8 || bytes[25] !== 6 || bytes[28] !== 0) return null;
+  const idat = [];
+  for (let offset = 8; offset + 12 <= bytes.length;) {
+    const length = bytes.readUInt32BE(offset);
+    if (bytes.toString('ascii', offset + 4, offset + 8) === 'IDAT') {
+      idat.push(bytes.subarray(offset + 8, offset + 8 + length));
+    }
+    offset += length + 12;
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const paeth = (a, b, c) => {
+    const p = a + b - c;
+    const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  };
+  let offset = 0, previous = Buffer.alloc(stride), min = 255, max = 0;
+  for (let y = 0; y < height; y++) {
+    const filter = raw[offset++];
+    if (filter > 4) return null;
+    const current = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x++) {
+      const left = x >= 4 ? current[x - 4] : 0;
+      const up = previous[x];
+      const upperLeft = x >= 4 ? previous[x - 4] : 0;
+      const predictor = filter === 1 ? left : filter === 2 ? up :
+        filter === 3 ? Math.floor((left + up) / 2) : filter === 4 ? paeth(left, up, upperLeft) : 0;
+      current[x] = (raw[offset++] + predictor) & 255;
+    }
+    for (let x = 3; x < stride; x += 4) {
+      min = Math.min(min, current[x]); max = Math.max(max, current[x]);
+    }
+    previous = current;
+  }
+  return [min, max];
 };
 const requireAudio = (file, label) => {
   if (!fs.existsSync(file)) { err(`${label} missing`); return; }
@@ -453,17 +492,20 @@ if (!tutorialMother || tutorialMother.special !== 'parent' || tutorialMother.vis
     tutorialMother.wander !== false || tutorialMother.x !== 9 || tutorialMother.y !== 3) {
   err('opening tutorial mother is missing, randomized, or misplaced');
 }
-const bedroomToHouse = MAPS.bedroom.warps?.['10,2'];
-if (!bedroomToHouse || bedroomToHouse.map !== 'house' || bedroomToHouse.x !== 10 || bedroomToHouse.y !== 3) {
-  err('opening tutorial staircase does not land in front of the mother');
+const bedroomToHouse = MAPS.bedroom.warps?.['12,2'];
+const houseToBedroom = MAPS.house.warps?.['12,2'];
+if (!bedroomToHouse || bedroomToHouse.map !== 'house' || bedroomToHouse.x !== 12 || bedroomToHouse.y !== 3 ||
+    !houseToBedroom || houseToBedroom.map !== 'bedroom' || houseToBedroom.x !== 12 || houseToBedroom.y !== 3) {
+  err('opening tutorial staircase no longer uses its right-hand entry in both directions');
 }
 for (const id of ['bedroom', 'house']) {
   if (MAPS[id].rows.length !== 10 || MAPS[id].rows[0].length !== 14) {
     err(`${id} expanded beyond the reviewed compact 14x10 home plan`);
   }
   const stair = MAPS[id].furniture?.find(item => item.ch === 'h');
-  if (!stair || stair.x !== 10 || stair.y !== 2) {
-    err(`${id} staircase is no longer attached to the upper-right wall`);
+  if (!stair || stair.x !== 12 || stair.y !== 2 || MAPS[id].rows[2]?.[12] !== 'h' ||
+      mapTileIsSolid(MAPS[id], 12, 2) || !mapTileIsSolid(MAPS[id], 10, 2)) {
+    err(`${id} staircase does not reserve its artwork while exposing only the lower-right entry`);
   }
 }
 const homeExit = MAPS.house.warps?.['7,8'];
@@ -677,7 +719,7 @@ for (const [ch, expected] of Object.entries(furnitureSources)) {
   }
 }
 for (const [ch, expected] of Object.entries({
-  m: [0, 0], D: [0, 0], h: [16, 0], n: [16, 16], s: [16, 16],
+  m: [0, 0], D: [0, 0], h: [-16, 0], n: [16, 16], s: [16, 16],
 })) {
   const entry = TILE_SRC_IN[ch];
   if (!entry || (entry.ox || 0) !== expected[0] || (entry.oy || 0) !== expected[1]) {
@@ -686,6 +728,9 @@ for (const [ch, expected] of Object.entries({
 }
 if (TILE_SRC_IN.h?.parts) {
   err('compact wall staircase unexpectedly reverted to a stitched foyer staircase');
+}
+if ((INTERIOR_FURNITURE_FOOTPRINTS.h || []).join(',') !== '-2,-1,3,2') {
+  err('compact wall staircase footprint no longer anchors its lower-right entry');
 }
 for (const ch of ['1', '2', '3']) {
   const entry = TILE_SRC_IN[ch];
@@ -832,6 +877,30 @@ for (const [ch, entry] of Object.entries(TILE_SRC_IN)) checkTileSource(entry, `i
 for (const [theme, entries] of Object.entries(TILE_SRC_THEME)) {
   for (const [ch, entry] of Object.entries(entries)) checkTileSource(entry, `${theme} '${ch}'`);
 }
+const reviewedCaveSheets = { '_': 'caveFloor', 'w': 'dungeonCave', 's': 'dungeonCave' };
+for (const [ch, sheet] of Object.entries(reviewedCaveSheets)) {
+  const entry = TILE_SRC_THEME.cave?.[ch];
+  const sources = entry?.variants || (entry ? [entry] : []);
+  if (!sources.length || sources.some(source => source.s !== sheet)) {
+    err(`cave '${ch}' does not use its reviewed local cave sheet`);
+  }
+}
+const reviewedCaveCells = {
+  '_': [[32, 64], [32, 96]],
+  'w': [[64, 0]],
+  's': [[224, 160]],
+};
+for (const [ch, expected] of Object.entries(reviewedCaveCells)) {
+  const entry = TILE_SRC_THEME.cave[ch];
+  const sources = entry.variants || [entry];
+  const actual = sources.map(source => [source.x, source.y]);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    err(`cave '${ch}' no longer uses its reviewed non-placeholder cells`);
+  }
+}
+if (TILE_SRC_THEME.cave.s?.base !== '_') {
+  err("cave 's' marker no longer draws over a cave floor base");
+}
 for (const ch of Object.keys(TILE_SRC_IN)) {
   if (!TILE_ART[ch] && !INDOOR_TILE_ART[ch]) err(`interior '${ch}' has no code-drawn fallback`);
 }
@@ -869,6 +938,52 @@ for (const [key, track] of Object.entries(BGM_TRACKS)) {
     requireAudio(path.join(__dirname, source), `BGM ${key} ${source}`);
   }
 }
+
+// Switching theme metadata must not reload a source that is already playing.
+let mockAudio;
+global.Audio = class {
+  constructor() {
+    mockAudio = this;
+    this.src = '';
+    this.currentTime = 0;
+    this.ended = false;
+    this.loadCount = 0;
+  }
+  addEventListener() {}
+  play() { return Promise.resolve(); }
+  pause() {}
+  load() { this.loadCount++; }
+  removeAttribute(name) { if (name === 'src') this.src = ''; }
+};
+Bgm.play('home');
+mockAudio.currentTime = 37;
+const sharedSourceLoads = mockAudio.loadCount;
+Bgm.play('town');
+if (mockAudio.loadCount !== sharedSourceLoads || mockAudio.currentTime !== 37) {
+  err('map BGM reloads or loses its playhead when theme keys share one source');
+}
+if (mockAudio.volume !== BGM_TRACKS.town.volume) {
+  err('shared-source BGM transition does not apply the destination volume');
+}
+mockAudio.ended = true;
+mockAudio.currentTime = 37;
+Bgm.play('town');
+if (mockAudio.loadCount !== sharedSourceLoads || mockAudio.currentTime !== 0) {
+  err('replaying an ended BGM does not restart without reloading its source');
+}
+mockAudio.ended = false;
+Bgm.play('cave');
+if (mockAudio.loadCount !== sharedSourceLoads + 1) {
+  err('different map BGM sources do not load exactly once');
+}
+Bgm.stop();
+if (mockAudio.src) err('stopped BGM retains its source');
+const stoppedLoads = mockAudio.loadCount;
+Bgm.play('home');
+if (mockAudio.loadCount !== stoppedLoads + 1) {
+  err('playing after BGM stop does not reload the requested source');
+}
+Bgm.stop();
 if (Object.keys(GRAPHICS_SPECIES_FILE).length !== 80) {
   err(`Graphics species mapping count ${Object.keys(GRAPHICS_SPECIES_FILE).length} != 80`);
 }
@@ -881,8 +996,49 @@ for (const file of [
   requirePng(path.join(__dirname, file), `UI asset ${file}`);
 }
 
-// 3b. Mystery hint database: exactly 27 clues for every playable species.
-if (HINT_DEFINITIONS.length !== 27) err(`hint definition count ${HINT_DEFINITIONS.length} != 27`);
+// 3b. Mystery hint database: 8 identity clues + 18 defensive matchups.
+if (HINT_DEFINITIONS.length !== 26) err(`hint definition count ${HINT_DEFINITIONS.length} != 26`);
+if (HINT_DEFINITIONS.some(def => def.id === 'shape')) err('body shape still appears in the observation record');
+const identityHintIds = HINT_DEFINITIONS.filter(def => !def.id.startsWith('def_')).map(def => def.id);
+if (identityHintIds.join(',') !== 'height,weight,catchRate,color,gender,growth,previous,next') {
+  err(`observation identity slots are misordered: ${identityHintIds.join(',')}`);
+}
+const defenseDefinitions = HINT_DEFINITIONS.filter(def => def.id.startsWith('def_'));
+if (defenseDefinitions.length !== 18 || defenseDefinitions[0]?.id !== 'def_NORMAL' ||
+    defenseDefinitions.some(def => /\uBC29\uC5B4/.test(def.label))) {
+  err('defensive observation rows are missing, misordered, or still use defense-suffixed labels');
+}
+if (hintValue({ species: 'bulbasaur' }, 'previous') !== 'X' ||
+    hintValue({ species: 'bulbasaur' }, 'next') !== 'O' ||
+    hintValue({ species: 'charizard' }, 'def_ROCK') !== '4X' ||
+    hintValue({ species: 'gengar' }, 'def_NORMAL') !== '0X') {
+  err('observation values do not use O/X evolution flags and direct defense multipliers');
+}
+const displayedDefenseMultipliers = new Set();
+for (const speciesId of Object.keys(SPECIES)) {
+  for (const type of DEFENSE_HINT_TYPES) {
+    const displayed = hintValue({ species: speciesId }, `def_${type}`);
+    const expected = `${typeEffectiveness(type, SPECIES[speciesId].types)}X`;
+    if (displayed !== expected) err(`${speciesId} ${type} defense displays ${displayed}, expected ${expected}`);
+    displayedDefenseMultipliers.add(displayed);
+  }
+}
+const allowedDefenseMultipliers = new Set(['0X', '0.25X', '0.5X', '1X', '2X', '4X']);
+if ([...displayedDefenseMultipliers].some(value => !allowedDefenseMultipliers.has(value)) ||
+    !displayedDefenseMultipliers.has('0.25X') || !displayedDefenseMultipliers.has('4X')) {
+  err(`observation defense multiplier set is invalid: ${[...displayedDefenseMultipliers].join(',')}`);
+}
+const uiSource = fs.readFileSync(path.join(__dirname, 'js', 'ui.js'), 'utf8');
+const styleSource = fs.readFileSync(path.join(__dirname, 'css', 'style.css'), 'utf8');
+const htmlSource = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+if (!htmlSource.includes('id="hints-minimize"') || !uiSource.includes('toggleHintsMinimized') ||
+    !uiSource.includes('hint-defense-grid') || !styleSource.includes('#battle-hints.minimized')) {
+  err('compact observation record is missing its minimize control or separate defense row');
+}
+if (/hints-toggle|toggleHintsSize|hint-light|battle-hints\.expanded/.test(htmlSource + uiSource + styleSource) ||
+    /[Gg] = \uAD00\uCC30 \uAE30\uB85D/.test(htmlSource)) {
+  err('removed observation expansion/light behavior is still present');
+}
 for (const type of DEFENSE_HINT_TYPES) if (!TYPES[type]) err(`hint type ${type} missing from TYPES`);
 for (const [id, sp] of Object.entries(SPECIES)) {
   const h = HINT_DATA[id];
@@ -901,6 +1057,90 @@ for (const [id, sp] of Object.entries(SPECIES)) {
   }
 }
 for (const id of Object.keys(HINT_DATA)) if (!SPECIES[id]) err(`hint data for unknown species ${id}`);
+
+// 3c. Mystery silhouettes: runtime JS is a file://-safe derivative of the
+// supplied JSON. Every playable species must resolve to one of its JSON body
+// categories, and every category needs matching front/back 128px RGBA PNGs.
+const silhouetteDir = path.join(__dirname, 'assets', 'Graphics', 'Silhouette');
+const silhouetteJson = JSON.parse(fs.readFileSync(path.join(silhouetteDir, 'silhouette.json'), 'utf8'));
+const silhouetteAssets = new Set();
+const silhouetteChoices = new Map();
+const normalizeSpeciesName = value => String(value)
+  .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/♀/g, 'f').replace(/♂/g, 'm').replace(/[^a-z0-9]/g, '');
+for (const [shapeName, group] of Object.entries(silhouetteJson)) {
+  if (!group || !/^asset(?:[1-9]|1[0-4])$/.test(group.image) || !Array.isArray(group.value)) {
+    err(`silhouette JSON group ${shapeName} is malformed`);
+    continue;
+  }
+  silhouetteAssets.add(group.image);
+  for (const speciesName of group.value) {
+    const key = normalizeSpeciesName(speciesName);
+    if (!silhouetteChoices.has(key)) silhouetteChoices.set(key, new Set());
+    silhouetteChoices.get(key).add(group.image);
+  }
+}
+for (let i = 1; i <= 14; i++) {
+  const asset = `asset${i}`;
+  if (!silhouetteAssets.has(asset)) err(`silhouette JSON is missing ${asset}`);
+  for (const [view, file] of [
+    ['front', path.join(silhouetteDir, `${asset}.png`)],
+    ['back', path.join(silhouetteDir, 'Back', `${asset}.png`)],
+  ]) {
+    requirePng(file, `${view} shape silhouette ${asset}`);
+    if (!fs.existsSync(file)) continue;
+    const bytes = fs.readFileSync(file);
+    const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+    if (width !== 128 || height !== 128) {
+      err(`${view} shape silhouette ${asset} is ${width}x${height}, expected 128x128`);
+    }
+    if (bytes[24] !== 8 || bytes[25] !== 6) {
+      err(`${view} shape silhouette ${asset} must be an 8-bit RGBA PNG with real alpha`);
+    } else {
+      const alphaRange = pngAlphaRange(bytes);
+      if (!alphaRange || alphaRange[0] !== 0 || alphaRange[1] !== 255) {
+        err(`${view} shape silhouette ${asset} must contain transparent background and opaque artwork`);
+      }
+    }
+  }
+}
+const battleSource = fs.readFileSync(path.join(__dirname, 'js', 'battle.js'), 'utf8');
+if (!/drawMysterySilhouette\(ctx, this\.active\.species,[\s\S]{0,100}'back'\)/.test(battleSource)) {
+  err('unidentified player battler no longer requests a rear-view silhouette');
+}
+for (const speciesId of Object.keys(SPECIES)) {
+  const asset = mysterySilhouetteAsset(speciesId);
+  const choices = silhouetteChoices.get(normalizeSpeciesName(speciesId));
+  if (!asset || !choices || !choices.has(asset)) {
+    err(`${speciesId} silhouette ${asset || 'missing'} disagrees with silhouette.json`);
+  }
+}
+for (const speciesId of Object.keys(MYSTERY_SILHOUETTE_ASSET)) {
+  if (!SPECIES[speciesId]) err(`silhouette mapping references unknown species ${speciesId}`);
+}
+if (Object.keys(MYSTERY_SILHOUETTE_ASSET).length !== Object.keys(SPECIES).length) {
+  err('shape silhouette mapping does not cover every playable species exactly once');
+}
+// The source JSON contains both quadruped and bipedal Lycanroc forms. This
+// game uses the quadruped base form, matching its HINT_DATA and battle art.
+if (MYSTERY_SILHOUETTE_ASSET.lycanroc !== 'asset5') {
+  err('Lycanroc does not use the quadruped silhouette for its in-game form');
+}
+const previousImage = global.Image;
+global.Image = class { constructor() { this.complete = false; this.naturalWidth = 0; } };
+const frontQuadruped = GameAssets.silhouetteFor('bulbasaur');
+const sharedFrontQuadruped = GameAssets.silhouetteFor('rattata');
+const backQuadruped = GameAssets.silhouetteFor('bulbasaur', 'back');
+const sharedBackQuadruped = GameAssets.silhouetteFor('rattata', 'back');
+if (!frontQuadruped || frontQuadruped !== sharedFrontQuadruped ||
+    frontQuadruped.src !== 'assets/Graphics/Silhouette/asset5.png') {
+  err('front body-shape silhouette cache/path is not shared by category');
+}
+if (!backQuadruped || backQuadruped === frontQuadruped || backQuadruped !== sharedBackQuadruped ||
+    backQuadruped.src !== 'assets/Graphics/Silhouette/Back/asset5.png') {
+  err('rear body-shape silhouette cache/path is missing or collides with the front view');
+}
+global.Image = previousImage;
 
 // 3. Sprite art rows: 16 rows of 8 chars (or 16 chars when wide: true)
 for (const [id, a] of Object.entries(CREATURE_ART)) {

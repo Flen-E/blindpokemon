@@ -179,9 +179,19 @@ const Bgm = (() => {
   }
 
   function play(key) {
-    if (!BGM_TRACKS[key]) return;
+    const nextTrack = BGM_TRACKS[key];
+    if (!nextTrack) return;
     ensureAudio();
-    if (currentKey === key && audio.src) {
+    const currentTrack = BGM_TRACKS[currentKey];
+    const currentSource = currentTrack && currentTrack.sources[sourceIndex];
+    const sharedSourceIndex = currentSource ? nextTrack.sources.indexOf(currentSource) : -1;
+    // Theme keys also carry per-scene volume, but several maps intentionally
+    // share one audio file. Keep its playhead when only that metadata changes.
+    if (audio.src && sharedSourceIndex >= 0) {
+      currentKey = key;
+      sourceIndex = sharedSourceIndex;
+      audio.loop = nextTrack.loop !== false;
+      audio.volume = nextTrack.volume === undefined ? 0.25 : nextTrack.volume;
       if (audio.ended) audio.currentTime = 0;
       safePlay();
       return;

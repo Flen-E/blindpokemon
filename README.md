@@ -64,7 +64,7 @@ The game is fully playable on phones, in **landscape only**:
    corridor: a short north craft lane, two-wide pond bridge, and south
    family/research lane keep every tutorial destination within one readable loop.
 2. Choose one of three starter candidates at Prof. MAPLE's lab. Their cards
-   show unrelated black silhouette decoys and original descriptions; names and
+   show JSON-classified body-shape silhouettes and original descriptions; names and
    types stay hidden until the choice is made.
 3. Your rival REX grabs the type-advantaged starter and battles you on the spot.
 4. FERNWAY TRAIL is now a two-bridge, branching Lv 3–5 riverside route whose encounter
@@ -125,21 +125,25 @@ The game is fully playable on phones, in **landscape only**:
 
 - Gen 3 damage formula with STAB, 85–100% variance, criticals (1/16; 1/8
   high-crit), and the full real type chart (all 18 types, including Fairy).
-- **Mystery battles:** both the player's active Pokémon and the opponent
-  appear as black silhouettes from unrelated registered species, and every
+- **Mystery battles:** both battlers use their broad body-shape category from
+  the supplied 14-category silhouette dataset. Opponents use the front-view
+  set while the player's active Pokémon uses the matching rear-view set, and every
   unidentified Pokémon name is fixed to `???`. Wild encounters
-  and trainer battles reveal one random clue from a 27-slot
-  board: height, weight, catch rate, color, body shape, gender ratio, EXP
+  and trainer battles reveal one random clue from a 26-slot
+  board: height, weight, catch rate, color, gender ratio, EXP
   growth, previous/next evolution presence, and one defensive clue for each
   of the 18 types. One clue opens when battle starts, then one random clue
   opens after every two player skills selected from Fight. A damaging move's
   type matchup directly fills that type's defensive clue; False Swipe
   (칼등치기) is the exception. The Bag's reusable `Hint ?` item reveals exactly two unrevealed
   clues, then makes a weaker recoil-free Hint attack before consuming the
-  player's turn. Press `G` (or tap the `G`
-  button on the record) to enlarge the observation board and press it again to
-  return to the compact view. The compact board uses yellow lights for
-  revealed clues, while the enlarged board shows their values.
+  player's turn. Revealed clues show their values immediately in the compact
+  record; its minus button collapses the panel to a title bar and the plus
+  button restores it. Defensive matchups begin on a separate row with Normal
+  and use direct labels such as `드래곤 2X`, `바위 4X`, or a dual resistance's
+  `풀 0.25X`. Previous/next
+  evolution currently display `O`/`X`; those value slots are isolated so they
+  can later show level, special, friendship, item, or trade methods.
 - **Scanner:** the player starts with three finite `Scanner` items. Using one
   during battle identifies the current opponent and consumes the turn; using
   one from the overworld Bag identifies an already-caught mystery partner.
@@ -222,12 +226,12 @@ The game is fully playable on phones, in **landscape only**:
 - **PC and Summary:** Center terminals manage the existing six-member party
   and BOX 1 storage. At least one active partner must remain. The supplied PC
   and Summary skins are used locally, and all identity rules still apply:
-  unscanned creatures keep a decoy silhouette, `???` name, and hidden type.
+  unscanned creatures keep their body-shape silhouette, `???` name, and hidden type.
   Scanners can also be consumed directly inside storage.
 - Mystery battle damage is scaled to **0.5x** for move damage, fixed damage,
   confusion, recoil, poison/burn chip, and Leech Seed drain (with a minimum
   of 1 damage so attacks still function).
-- Hint measurements, colors, body shapes, gender ratios, growth rates, and
+- Hint measurements, colors, gender ratios, growth rates, evolution presence, and
   capture rates are stored locally in `js/data/hints.js`; the canonical
   Pokédex source used while preparing that table is [PokéAPI](https://pokeapi.co/).
 - Stats HP/Atk/Def/SpA/SpD/Spe; speed order; ±6 stat stages **including
@@ -294,7 +298,8 @@ The game is fully playable on phones, in **landscape only**:
   the artwork itself remains Nintendo-derived.
 - The supplied `Graphics` selection adds front/back/shiny/icon art for 80
   additional species (including complete early-route families through Gen 9),
-  forest/cave autotile references,
+  forest/cave autotile references, 14 front-view body-shape silhouettes plus
+  14 matching generated rear-view variants with their authoritative species JSON,
   supplied player/bicycle character sheets,
   separate field/full-body/VS sheets for all four current leaders, nine regional
   battle backgrounds, and PC Storage/Summary skins. The project makes no
@@ -320,7 +325,8 @@ The game is fully playable on phones, in **landscape only**:
   variants include their full two-row backrests, and the complete entrance mat
   is depth-rendered so the room border cannot cut it off. The 14×10 starting
   home keeps its bed/study and family living zones compact, with a three-wide
-  staircase attached to the upper-right wall instead of a central foyer stair.
+  staircase attached to the upper-right wall and entered from its lower-right
+  step instead of the visually incorrect lower-left edge.
   Player, rival, craft, civic, stone, machine, and botanical interiors also use
   reviewed floor/wall palette pairs from different complete bands of the local
   sheet. Every non-outdoor map has a semantic room plan and required set pieces.
@@ -344,13 +350,17 @@ The game is fully playable on phones, in **landscape only**:
   villain crew use their matching trainer sheets. All normal actors are locked
   to 32x48 source frames; only bicycle actors may use 48x48 frames.
 - RMXP autotile cells marked with a red X are editor placeholders and are
-  never rendered. Forest/cave maps use the safe local terrain sheets, and a
+  never rendered. Cave floors use the local Brown cave floor autotile, while
+  walls and markers use reviewed complete cells from the Dungeon cave sheet;
+  forest maps retain safe terrain slices. A
   tall tree's trunk plus visible canopy footprint are both solid to movement
   and NPC placement.
 - The supplied `Audio` pack provides local title, exploration, wild/trainer/
   leader battle, and victory music. Runtime selection uses browser-compatible
   OGG sources directly so file:// play cannot stall on an unsupported MIDI;
   map changes, battle return, tab resume, and unmute all retry the active track.
+  Moving between maps backed by the same OGG keeps the current playhead while
+  applying the destination theme's volume and loop settings.
   `M` mutes both this music and the synthesized sound effects.
 - Sprite/character/tile designs **© Nintendo / Creatures Inc. / GAME FREAK
   Inc.** — used here non-commercially for a model-capability test; this
@@ -472,15 +482,21 @@ DATA (real series values; Gen-3-modeled battle rules)
 
 BATTLE SYSTEM (Gen 3 mechanics)
 - Fight / Bag / Switch / Run menu; up to 4 moves with PP; Struggle when dry.
-- Mystery battles hide both battlers behind random black silhouette decoys and
-  show the 27-slot mystery clue board. Wild and trainer battles open one clue
+- Mystery battles hide both battlers behind deterministic body-shape silhouettes
+  derived from `assets/Graphics/Silhouette/silhouette.json`; opponents use the
+  original front-view assets and the player's active creature uses a matching
+  generated rear-view asset so the battle perspective remains coherent. They
+  show the 26-slot mystery clue board. Wild and trainer battles open one clue
   on entry and one random clue after every two player Fight skills. Damaging
   moves also reveal the matching defensive type clue directly; False Swipe
   (칼등치기) does not. Using the reusable Hint item opens exactly two random locked clues,
   makes a weaker recoil-free Hint attack, and then gives the enemy its normal
-  turn.
-  `G` or the panel's `G` button enlarges the board;
-  party-management screens also use silhouette decoys and `???` labels.
+  turn. Show revealed values immediately in the compact record, place all 18
+  multiplier-only defensive clues in a separate Normal-first grid, and provide
+  a minus/plus button that minimizes or restores the record without an expanded view;
+  keep previous/next evolution as O/X slots whose value functions can later
+  expose level, special, friendship, item, or trade methods;
+  party-management screens also use the same shape silhouettes and `???` labels.
 - The finite Scanner identifies the current opponent without dealing damage,
   but still gives the enemy its normal turn. It can also identify an already-
   caught party member from the overworld Bag; only identified creatures reveal
@@ -539,7 +555,7 @@ WORLD & PROGRESSION (FireRed opening arc, original writing)
 - Beat-for-beat: wake up in your upstairs bedroom -> downstairs, a parent
   NPC sends you off with a Potion (and offers free healing later) -> the
   professor's lab in town -> inspect three description-only starter candidates
-  with unrelated silhouette decoys -> a cocky
+  with matching body-shape silhouettes -> a cocky
   rival immediately picks the type-countering starter and battles you in
   the lab, then leaves.
   Keep this opening impossible to lose: use a fixed recognizable mother sprite
@@ -632,9 +648,10 @@ WORLD & PROGRESSION (FireRed opening arc, original writing)
   Mareep, Ralts, Roggenrola, Noibat, Snom, Tinkatink, Rockruff, Wooper,
   Houndour, Swablu, Shinx, Drilbur, Goomy, Rowlet, Fidough, Frigibax, and
   Glimmet families.
-  Every added species needs battle stats, a valid learnset, all 27 mystery
+  Every added species needs battle stats, a valid learnset, all 26 mystery
   hints, normal/shiny front/back/icon assets, trainer use where appropriate,
-  and at least one progression-appropriate wild habitat.
+  a `silhouette.json`-validated body-shape asset, and at least one
+  progression-appropriate wild habitat.
 - All character names, town names, and dialogue must be original writing -
   do not copy any text from the actual games.
 
@@ -699,7 +716,8 @@ UI / POLISH
   catch sequence, badge fanfare), plus local looping BGM for title, every map,
   wild/trainer/leader battles, and victories. Use browser-decodable local OGG
   at runtime, including file://, and switch tracks on warps, links, battle
-  entry/exit, blackout, title return, tab resume, and unmute. M mutes and
+  entry/exit, blackout, title return, tab resume, and unmute. Preserve the
+  playhead when adjacent map themes resolve to the same OGG. M mutes and
   resumes both SFX and BGM.
 - Save system: localStorage slot plus an exportable/importable base64 save
   code (title screen has CONTINUE / NEW GAME / IMPORT CODE). Loading validates

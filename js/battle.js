@@ -93,12 +93,8 @@ class BattleSession {
     // Trainer opponents are mystery targets too; every enemy in the party
     // remains anonymous so hints are useful in both battle types.
     for (const c of this.enemyParty) c.unknown = true;
-    // Both battlers use unrelated visual decoys. The real creature objects
-    // remain the sole source of battle mechanics and hints.
-    this.silhouetteSpecies = {
-      player: this.party[this.playerIdx] ? mysterySilhouetteSpecies(this.party[this.playerIdx].species) : null,
-      enemy: mysterySilhouetteSpecies(this.enemyParty[0].species),
-    };
+    // Hidden battlers use their JSON-classified body-shape silhouette. The
+    // real creature objects remain the sole source of mechanics and hints.
     this.participants = new Set();
     this.evoQueue = [];
     this.over = false;
@@ -522,7 +518,6 @@ class BattleSession {
     }
     this.fx.p.vis = false;
     this.playerIdx = idx;
-    this.silhouetteSpecies.player = mysterySilhouetteSpecies(this.active.species);
     this.pStages = freshStages();
     this.vol.player = freshVolatiles();
     await UI.say(`가랏! ${creatureName(this.active)}!`);
@@ -866,7 +861,6 @@ class BattleSession {
       await this.awardExp();
       if (!this.wild && next !== -1) {
         this.enemyIdx = next;
-        this.silhouetteSpecies.enemy = mysterySilhouetteSpecies(this.enemy.species);
         this.revealedHints = [];
         this.playerSkillUses = 0;
         this.revealRandomHint();
@@ -1184,21 +1178,23 @@ class BattleSession {
     if (orb.vis) shadow(orb.x, 84, 9);
 
     if (e.vis && (e.flash <= 0 || Math.floor(e.flash / 3) % 2 === 0)) {
-      const silhouetteId = this.silhouetteSpecies.enemy || this.enemy.species;
-      const drawId = this.enemy.identified ? this.enemy.species : silhouetteId;
-      const img = GameAssets.frontFor(drawId, this.enemy.identified && this.enemy.shiny) || Sprites.creature(drawId);
       const sc = e.scale === undefined ? 1 : e.scale;
       const sz = 96 * sc;
       const x = e.x + (96 - sz) / 2, y = e.y + e.dy + (96 - sz);
-      if (this.enemy.identified) ctx.drawImage(img, x, y, sz, sz);
-      else this.drawSilhouette(ctx, img, x, y, sz);
+      if (this.enemy.identified) {
+        const img = GameAssets.frontFor(this.enemy.species, this.enemy.shiny) || Sprites.creature(this.enemy.species);
+        ctx.drawImage(img, x, y, sz, sz);
+      } else {
+        GameAssets.drawMysterySilhouette(ctx, this.enemy.species, x, y, sz);
+      }
     }
     if (p.vis && (p.flash <= 0 || Math.floor(p.flash / 3) % 2 === 0)) {
-      const silhouetteId = this.silhouetteSpecies.player || this.active.species;
-      const drawId = this.active.identified ? this.active.species : silhouetteId;
-      const img = GameAssets.backFor(drawId, this.active.identified && this.active.shiny) || Sprites.creature(drawId);
-      if (this.active.identified) ctx.drawImage(img, p.x, p.y + p.dy, 96, 96);
-      else this.drawSilhouette(ctx, img, p.x, p.y + p.dy, 96);
+      if (this.active.identified) {
+        const img = GameAssets.backFor(this.active.species, this.active.shiny) || Sprites.creature(this.active.species);
+        ctx.drawImage(img, p.x, p.y + p.dy, 96, 96);
+      } else {
+        GameAssets.drawMysterySilhouette(ctx, this.active.species, p.x, p.y + p.dy, 96, 96, 'back');
+      }
     }
     if (orb.vis) {
       ctx.save();
@@ -1220,20 +1216,4 @@ class BattleSession {
     ctx.restore();
   }
 
-  drawSilhouette(ctx, img, x, y, size) {
-    if (!this.silhouetteCanvas) {
-      this.silhouetteCanvas = document.createElement('canvas');
-      this.silhouetteCanvas.width = 96;
-      this.silhouetteCanvas.height = 96;
-      this.silhouetteCtx = this.silhouetteCanvas.getContext('2d');
-    }
-    const sc = this.silhouetteCtx;
-    sc.clearRect(0, 0, 96, 96);
-    sc.drawImage(img, 0, 0, 96, 96);
-    sc.globalCompositeOperation = 'source-in';
-    sc.fillStyle = '#090b10';
-    sc.fillRect(0, 0, 96, 96);
-    sc.globalCompositeOperation = 'source-over';
-    ctx.drawImage(this.silhouetteCanvas, x, y, size, size);
-  }
 }
